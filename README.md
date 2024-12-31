@@ -66,3 +66,45 @@ This package uses vosk offline speech recognition.
 
 
 
+
+# Seems like frontend uses webm, and not wav :-( APIs for working with Wave files are more complex 
+
+# I can easily record .webm files ( client records webm -> client sends chunk every second -> chunk is converted using ffmpeg ) 
+
++ Code will be more simple (!)
++ Probably less problems with compatibility
+
+- Need to have ffmpeg
+- Or need to code the conversion step (+latency)
+
+# Record .wav
+
+- no need to have any new dependencies
+- more complex code
+- may be more problems with compatibility
+- https / single origin / cannot have frontend served just as file :-(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
