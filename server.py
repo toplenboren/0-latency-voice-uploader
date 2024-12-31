@@ -4,22 +4,16 @@ from datetime import datetime
 import time
 from collections import defaultdict
 import subprocess
-import json
 
 app = Flask(__name__)
 
-# Create dirs if they do not exist
+# Update directories
 RECORDINGS_DIR = 'recordings'
 WAV_DIR = os.path.join(RECORDINGS_DIR, 'wav')
-
-# Sample rate will be taken from webm file, but if not present, this default will be used
-DEFAULT_SAMPLE_RATE = 44100 
-
 os.makedirs(WAV_DIR, exist_ok=True)
 
-# Memory for chunks
+# Store chunks in memory
 audio_chunks = defaultdict(list)  # client_id -> list of (index, data) tuples
-
 
 @app.route('/audio', methods=['POST'])
 def handle_audio_chunk():
@@ -40,7 +34,6 @@ def handle_audio_chunk():
     print(f'Current chunks for client {client_id}: {len(audio_chunks[client_id])}')
     
     return {'status': 'ok', 'chunk_index': chunk_index}
-
 
 @app.route('/audio_end', methods=['POST'])
 def handle_audio_end():
@@ -69,30 +62,12 @@ def handle_audio_end():
                 f.write(chunk_data)
                 print(f'Wrote chunk {chunk_idx} ({len(chunk_data)} bytes)')
         
-        print(f'Analyzing WebM file properties')
-        probe_cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_streams',
-            temp_webm
-        ]
-        
-        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
-        audio_info = json.loads(probe_result.stdout)
-        
-        # Extract audio parameters from the first audio stream
-        audio_stream = next(s for s in audio_info['streams'] if s['codec_type'] == 'audio')
-        sample_rate = audio_stream.get('sample_rate', '44100')
-        
-        print(f'Detected audio parameters: sample_rate={sample_rate}')
-        
         print(f'Converting to WAV: {wav_filename}')
         result = subprocess.run([
             'ffmpeg',
             '-i', temp_webm,
             '-acodec', 'pcm_s16le',
-            '-ar', sample_rate,
+            '-ar', '44100',
             '-y',
             wav_filename
         ], capture_output=True, text=True)
@@ -100,7 +75,7 @@ def handle_audio_end():
         if result.returncode != 0:
             print(f'FFmpeg error: {result.stderr}')
             return {'status': 'error', 'message': 'FFmpeg conversion failed'}
-
+            
     except Exception as e:
         print(f'Error during processing: {str(e)}')
         return {'status': 'error', 'message': str(e)}
