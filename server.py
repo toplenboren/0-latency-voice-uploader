@@ -1,27 +1,19 @@
 from flask import Flask, request, send_from_directory
 import os
 from datetime import datetime
-import wave
 import time
 from collections import defaultdict
+import subprocess
 
 app = Flask(__name__)
 
-# Serve static files from the current directory
-@app.route('/')
-def serve_index():
-    return send_from_directory('.', 'index.html')
-
-@app.route('/<path:filename>')
-def serve_static(filename):
-    return send_from_directory('.', filename)
-
+# Update directories
 RECORDINGS_DIR = 'recordings'
-os.makedirs(RECORDINGS_DIR, exist_ok=True)
+WAV_DIR = os.path.join(RECORDINGS_DIR, 'wav')
+os.makedirs(WAV_DIR, exist_ok=True)
 
 # Store chunks in memory
 audio_chunks = defaultdict(list)  # client_id -> list of (index, data) tuples
-sample_rates = {}  # client_id -> sample_rate
 
 @app.route('/audio', methods=['POST'])
 def handle_audio_chunk():
@@ -30,19 +22,16 @@ def handle_audio_chunk():
     client_id = request.form['client_id']
     chunk_index = int(request.form['index'])
     chunk_created_at = int(request.form['created_at'])
-    pcm_data = request.files['blob'].read()
-    sample_rate = int(request.form['sample_rate'])
-    
-    # Store sample rate for this client
-    sample_rates[client_id] = sample_rate
+    webm_data = request.files['blob'].read()
     
     # Store chunk in memory
-    audio_chunks[client_id].append((chunk_index, pcm_data))
+    audio_chunks[client_id].append((chunk_index, webm_data))
     
     process_time = time.time() * 1000 - receive_time
     latency = receive_time - chunk_created_at
     
-    print(f'Chunk {chunk_index}: Created at {chunk_created_at:.0f}ms, Received at {receive_time:.0f}ms (latency: {latency:.0f}ms), Buffered in {process_time:.0f}ms')
+    print(f'Chunk {chunk_index}: Client {client_id}, Size: {len(webm_data)} bytes')
+    print(f'Current chunks for client {client_id}: {len(audio_chunks[client_id])}')
     
     return {'status': 'ok', 'chunk_index': chunk_index}
 
@@ -51,38 +40,62 @@ def handle_audio_end():
     start_time = time.time() * 1000
     
     client_id = request.form['client_id']
+    print(f'\nProcessing end request for client {client_id}')
+    print(f'Available clients: {list(audio_chunks.keys())}')
+    
     if client_id not in audio_chunks:
+        print(f'Error: No chunks found for client {client_id}')
         return {'status': 'error', 'message': 'No audio chunks found for client'}
     
-    # Sort chunks by index
     chunks = sorted(audio_chunks[client_id], key=lambda x: x[0])
     total_chunks = len(chunks)
+    print(f'Found {total_chunks} chunks for client {client_id}')
     
-    # Create WAV file
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'{RECORDINGS_DIR}/recording_{timestamp}_{client_id}.wav'
+    wav_filename = f'{WAV_DIR}/recording_{timestamp}_{client_id}.wav'
+    temp_webm = f'{WAV_DIR}/temp_{client_id}.webm'
     
-    with wave.open(filename, 'wb') as wav_file:
-        wav_file.setnchannels(1)  # Mono
-        wav_file.setsampwidth(2)  # 16-bit
-        wav_file.setframerate(sample_rates[client_id])
+    print(f'Creating temporary WebM file: {temp_webm}')
+    try:
+        with open(temp_webm, 'wb') as f:
+            for idx, (chunk_idx, chunk_data) in enumerate(chunks):
+                f.write(chunk_data)
+                print(f'Wrote chunk {chunk_idx} ({len(chunk_data)} bytes)')
         
-        # Write all chunks at once
-        for _, chunk_data in chunks:
-            wav_file.writeframes(chunk_data)
+        print(f'Converting to WAV: {wav_filename}')
+        result = subprocess.run([
+            'ffmpeg',
+            '-i', temp_webm,
+            '-acodec', 'pcm_s16le',
+            '-ar', '44100',
+            '-y',
+            wav_filename
+        ], capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f'FFmpeg error: {result.stderr}')
+            return {'status': 'error', 'message': 'FFmpeg conversion failed'}
+            
+    except Exception as e:
+        print(f'Error during processing: {str(e)}')
+        return {'status': 'error', 'message': str(e)}
+    finally:
+        print(f'Cleaning up temp file: {temp_webm}')
+        if os.path.exists(temp_webm):
+            os.unlink(temp_webm)
     
     # Clear the chunks from memory
+    print(f'Clearing chunks for client {client_id}')
     del audio_chunks[client_id]
-    del sample_rates[client_id]
     
     end_time = time.time() * 1000
     process_time = end_time - start_time
     
-    print(f'Recording ended for {client_id}: Wrote {total_chunks} chunks to {filename} in {process_time:.0f}ms')
+    print(f'Successfully processed recording for client {client_id}\n')
     
     return {
         'status': 'ok',
-        'filename': filename,
+        'wav_filename': wav_filename,
         'chunks': total_chunks,
         'process_time': process_time
     }

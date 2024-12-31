@@ -1,7 +1,6 @@
 class AudioRecorderWorklet extends AudioWorkletProcessor {
     constructor() {
         super();
-        this._chunkIndex = 0;
         console.log('Audio recorder worklet created')
     }
 

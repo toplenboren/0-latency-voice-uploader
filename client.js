@@ -1,10 +1,6 @@
 /**
  * This is just a proof of concept of Audio Recording Client with (minimal) latency
  * 
- * This module handles client-side audio recording using Web Audio API and AudioWorklet.
- * It captures audio from the microphone in WAV format, processes it in chunks, and sends them to 
- * the server for WAV file creation.
- * 
  * Key components:
  * - AudioContext: Manages audio processing
  * - AudioWorklet: Processes raw audio data
@@ -17,11 +13,10 @@ const CLIENT_ID = Math.random().toString(36).substring(7);
 const THROTTLE_INTERVAL = 1500;  // Time between chunk sends in milliseconds
 
 // Audio processing state
-let audioContext;        // The Web Audio context
+let mediaRecorder;       // MediaRecorder instance
 let audioStream;         // MediaStream from getUserMedia
 let recordingSession;    // Current recording session info
-let audioProcessor;      // AudioWorkletNode for processing
-let audioSource;         // MediaStreamAudioSourceNode
+let audioChunks = [];    // Buffer for audio chunks
 
 // Chunk management
 let lastSendTime = 0;    // Timestamp of last chunk send
@@ -47,37 +42,16 @@ async function initializeMicrophone() {
     console.info('Initializing microphone')
 
     try {
-        // Request microphone access
         audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContext = new AudioContext();
-        
-        // Load and register the audio worklet for processing
-        await audioContext.audioWorklet.addModule('audio-worklet.js');
-        
-        // Create and connect audio nodes
-        audioSource = audioContext.createMediaStreamSource(audioStream);
-        audioProcessor = new AudioWorkletNode(audioContext, 'audio-recorder-worklet', {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            channelCount: 1,
-            processorOptions: {
-                sampleRate: audioContext.sampleRate
-            }
-        });
-        
-        // Handle processed audio chunks from worklet
-        audioProcessor.port.onmessage = (event) => {
-            // Uncomment this if you need to debug raw data
-            // console.debug('Received message from worklet:', event.data);
-            const { chunk } = event.data;
-            processIncomingAudioChunkFromAudioContext(chunk);
-        };
-        
-        audioSource.connect(audioProcessor);
         startButton.disabled = false;
         
-        // Start in suspended state to avoid immediate recording
-        audioContext.suspend()
+        // Log supported formats
+        const supportedMimeTypes = [
+            'audio/webm',
+            'audio/webm;codecs=opus',
+        ].filter(mimeType => MediaRecorder.isTypeSupported(mimeType));
+        
+        console.info('Supported MIME types:', supportedMimeTypes);
     } catch (error) {
         console.error('Microphone initialization error:', error);
         startButton.disabled = true;
@@ -94,21 +68,16 @@ async function initializeMicrophone() {
  */
 async function sendPendingChunks() {
     const now = Date.now();
-
-    console.info('Sending chunks:', pendingChunks.length);
-    const chunksToSend = pendingChunks;
-    pendingChunks = [];
-    lastSendTime = now;
-    chunkIndex = lastChunkIndex++
-
-    const combinedChunks = chunksToSend.map(item => item.chunk);
+    console.info('Sending chunks:', audioChunks.length);
     
     const formData = new FormData();
-    formData.append('index', chunkIndex);
-    formData.append('blob', new Blob(combinedChunks));
+    formData.append('index', lastChunkIndex++);
+    formData.append('blob', new Blob(audioChunks, { type: 'audio/webm' }));
     formData.append('client_id', CLIENT_ID);
-    formData.append('sample_rate', audioContext.sampleRate);
-    formData.append('created_at', chunksToSend[0].time);
+    formData.append('created_at', now);
+
+    audioChunks = [];  // Clear the buffer
+    lastSendTime = now;
 
     try {
         const response = await fetch(API_URL, {
@@ -157,12 +126,31 @@ async function processIncomingAudioChunkFromAudioContext(chunk) {
 async function startRecording() {
     console.info('Starting recording...');
     
-    if (audioContext.state === 'suspended') {
-        console.log('Resuming audio context...');
-        await audioContext.resume();
-    }
+    // Reset state before starting new recording
+    audioChunks = [];
+    lastChunkIndex = 0;
+    lastSendTime = 0;
+    pendingChunks = [];
     
-    console.log('Recording setup complete. AudioContext state:', audioContext.state);
+    mediaRecorder = new MediaRecorder(audioStream, {
+        mimeType: 'audio/webm;codecs=opus',
+        bitsPerSecond: 128000
+    });
+    
+    mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+            audioChunks.push(event.data);
+            
+            // Send chunks periodically
+            const now = Date.now();
+            if (Math.abs(now - lastSendTime) >= THROTTLE_INTERVAL) {
+                sendPendingChunks();
+            }
+        }
+    };
+    
+    mediaRecorder.start(500);  // Collect data every 500ms
+    console.log('Recording started');
 }
 
 /**
@@ -174,17 +162,27 @@ async function startRecording() {
 function stopRecording() {
     console.info('Ending recording...');
 
-    // Ensure all chunks are sent before stopping
-    console.info("Sending pending chunks...", pendingChunks);
-    sendPendingChunks().then(() => {
-        console.info("Stopping recording on server...")
-        stopRecordingOnServer()
-    })
-
-    // Suspend audio processing
-    if (audioContext && audioContext.state === 'running') {
-        console.log('Suspending audio context...');
-        audioContext.suspend();
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        
+        // Send any remaining chunks
+        if (audioChunks.length > 0) {
+            console.info("Sending final chunks...");
+            sendPendingChunks().then(() => {
+                console.info("Stopping recording on server...")
+                stopRecordingOnServer();
+            });
+        } else {
+            // Add this to handle case when no chunks are pending
+            console.info("No final chunks, stopping recording on server...")
+            stopRecordingOnServer();
+        }
+        
+        // Reset state for next recording
+        audioChunks = [];
+        lastChunkIndex = 0;
+        lastSendTime = 0;
+        pendingChunks = [];
     }
 }
 
@@ -234,4 +232,3 @@ stopButton.addEventListener('click', async () => {
 
 // This is here just to initialize this script on load
 initializeMicrophone();
-  
