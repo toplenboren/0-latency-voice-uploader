@@ -1,0 +1,333 @@
+:root {
+    --primary: #4CAF50;
+    --secondary: #2196F3;
+    --background: #f5f5f5;
+    --surface: #ffffff;
+    --error: #FF5252;
+    --text: #333333;
+    --border-radius: 12px;
+    --spacing: 16px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    background-color: var(--bs-body-bg);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+}
+
+.container-fluid {
+    height: 100%;
+    padding: calc(var(--spacing) / 2);
+}
+
+/* Remove any height calculations from columns since Bootstrap will handle it */
+.col-8, .col-4 {
+    padding: 0 calc(var(--spacing) / 2);
+}
+
+.navbar {
+    border-radius: var(--border-radius);
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: var(--shadow);
+    padding: 0.15rem 0.5rem;
+    margin-bottom: calc(var(--spacing) / 2);
+}
+
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.main-content {
+    height: 100vh;
+    padding: 0;
+}
+
+/* Visual Column Styles */
+.visual-column {
+    height: calc(100vh - var(--spacing) * 2);
+    padding: var(--spacing) !important;
+}
+
+.picture-container {
+    height: 100%;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    position: relative;
+}
+
+#pictureDisplay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#pictureDisplay:not([src]), 
+#pictureDisplay[src=""] {
+    display: none;
+}
+
+.picture-placeholder {
+    position: relative;
+    z-index: 1;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--bs-secondary-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+}
+
+/* Chat Column Styles */
+.chat-column {
+    height: calc(100vh - var(--spacing) * 2);
+    padding: var(--spacing) !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Chat container to fill remaining space */
+.chat-container {
+    border-radius: var(--border-radius);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: var(--shadow);
+    background: var(--bs-body-bg);
+    padding: var(--spacing);
+    overflow-y: auto;
+}
+
+.chat-message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    border-radius: var(--border-radius);
+}
+
+.chat-message.service {
+    background: transparent;
+    opacity: 0.6;
+    font-size: 0.75rem;
+    padding: 0.125rem;
+    margin: 0.125rem 0;
+    color: var(--bs-secondary-color);
+    font-style: italic;
+    justify-content: center;
+    margin-left: 10%;
+    margin-right: 10%;
+    text-align: center;
+}
+
+.chat-message.from {
+    background: var(--bs-secondary-bg);
+    margin-right: 20%;
+}
+
+.chat-message.to {
+    background: var(--bs-primary);
+    color: var(--bs-primary-bg-subtle);
+    margin-left: 20%;
+}
+
+.chat-avatar {
+    width: 28px;
+    height: 28px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--bs-secondary-bg);
+    border: 2px solid var(--bs-body-bg);
+    box-shadow: var(--shadow);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+    font-size: 14px;
+}
+
+.chat-content {
+    flex-grow: 1;
+}
+
+/* Audio Control Elements */
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ccc;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.status-indicator.listening { background: var(--primary); }
+.status-indicator.processing { background: var(--secondary); }
+.status-indicator.error { background: var(--error); }
+
+.volume-meter {
+    height: 20px;
+    background: #eee;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    margin: 4px 0;
+}
+
+.volume-current, .volume-mean {
+    position: absolute;
+    height: 100%;
+    transition: width 0.1s ease;
+}
+
+.volume-current {
+    background: var(--primary);
+    z-index: 2;
+}
+
+.volume-mean {
+    background: rgba(0,0,0,0.1);
+    z-index: 1;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0.5em 0.8em;
+    border: none;
+    background: var(--bs-secondary-bg);
+    border-radius: calc(var(--border-radius) - 4px);
+    transition: background-color 0.2s;
+}
+
+.theme-toggle:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+/* Dark theme */
+[data-bs-theme="dark"] {
+    --background: #121212;
+    --surface: #1e1e1e;
+    --text: #ffffff;
+    --shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bs-secondary-bg);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bs-tertiary-bg);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--bs-tertiary-color);
+}
+
+/* Update existing styles to use CSS variables */
+.form-check-label {
+    font-size: 1.2rem;
+    line-height: 1;
+    padding-left: 0.5em;
+}
+
+/* Dark theme adjustments */
+[data-bs-theme="dark"] .picture-placeholder,
+[data-bs-theme="dark"] .chat-avatar {
+    border-color: var(--bs-gray-800);
+    background-color: var(--bs-gray-700);
+    color: var(--bs-gray-400);
+}
+
+/* Adjust avatar for service messages to be even smaller */
+.chat-message.service .chat-avatar {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+}
+
+/* Make the robot icon smaller too */
+.chat-message.service .bi-robot {
+    font-size: 8px;
+}
+
+/* Adjust chat column height to match visual column */
+.chat-column {
+    height: calc(100vh - var(--spacing) * 2);
+    padding: var(--spacing) !important;
+    padding-top: var(--spacing) !important;
+}
+
+/* Add styles for settings button */
+.settings-btn {
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0.5em 0.8em;
+    border: none;
+    background: var(--bs-secondary-bg);
+    border-radius: calc(var(--border-radius) - 4px);
+    transition: background-color 0.2s;
+}
+
+.settings-btn:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+/* Add gap between navbar buttons */
+.navbar .navbar-nav {
+    gap: 0.5rem;
+}
+
+/* Add these styles for the modal */
+.modal-fullscreen {
+    padding: 1rem;
+}
+
+.modal-fullscreen .modal-content {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--border-radius);
+}
+
+.modal-header {
+    border-bottom-color: var(--bs-border-color);
+}
+
+.modal-footer {
+    border-top-color: var(--bs-border-color);
+}
+
+.form-control, .form-range {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+}
+
+.form-control:focus {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-primary);
+    color: var(--bs-body-color);
+} 
