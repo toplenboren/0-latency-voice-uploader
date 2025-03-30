@@ -3,59 +3,47 @@ import { Api, IApiConfig } from './api.js';
 import { AudioControl, IAudioControlConfig } from './audioControl.js';
 
 interface IKaiaConfig {
-    sessionId?: string
+    playSounds: boolean,
+    sessionId: string
 
-    wakeword?: string
-    voskModelUrl?: string
+    wakeword: string
+    voskModelUrl: string
 
-    chatContainerId?: string
-    pictureContainerId?: string,
+    chatContainerId: string
+    pictureContainerId: string,
 
-    apiConfig: IApiConfig,
-    audioControlConfig: IAudioControlConfig,
-    uiControlConfig: IUIControlConfig,
+    kaiaServerBaseUrl: string,
+    audioServerBaseUrl: string,
 }
 
 class KaiaApp {
-    wakeword: string
-    sessionId: string
+    lastMessageIndex
 
     config: IKaiaConfig
+    sessionId: string
 
-    uiControl: UIControl
-    api: Api
-    audioControl: AudioControl
+    uiControl?: UIControl
+    api?: Api
+    audioControl?: AudioControl
 
     constructor(config: IKaiaConfig) {
-        const wakeword = config?.wakeword || 'computer'
-        const sessionId = config?.sessionId || Math.floor(Math.random() * 1000000).toString()
+        this.sessionId = config?.sessionId || Math.floor(Math.random() * 1000000).toString()
 
-        this.userConfig = {
-            uiControl: {
-                chatContainerId: config?.chatContainerId || 'chatMessages',
-                pictureContainerId: config?.pictureContainerId || 'pictureDisplay',
-            },
-            api: {},
-            audioControl: {
-                wakeword: wakeword,
-                voskModelUrl: config?.voskModelUrl || '/vosk-model-small-en-us-0.15.zip',
-            }
-        };
-        
-        this.uiControl = null;
-        this.audioControl = null;
-        this.api = null;
+        this.lastMessageIndex = 0
 
-        this.wakeword = wakeword
-        this.sessionId = sessionId
+        this.config = config
     }
 
     async processUpdates () {
-        const updates = await this.api.getUpdates(this.lastMessageId)
+        if (!this.api || !this.uiControl || !this.audioControl) {
+            throw new Error('Kaia is not properly initialized')
+        }
+
+        const updates = await this.api.getUpdates(this.lastMessageIndex)
         
         for (const update of updates) {
-            if (update.id > this.lastMessageId) {
-                this.lastMessageId = update.id
+            if (update.id > this.lastMessageIndex) {
+                this.lastMessageIndex = update.id
             } else {
                 continue
             }
@@ -73,6 +61,7 @@ class KaiaApp {
                     avatar: payloadAvatar ? payloadAvatarPath : undefined
                 }
 
+                // @ts-ignore
                 this.uiControl.addChatMessage(payloadText, chatMessageOptions)
             }
             
@@ -102,67 +91,110 @@ class KaiaApp {
 
     async initialize() {
         try {
-            this.uiControl = new UIControl(this.userConfig.uiControl)
+            const uiControlConfig: IUIControlConfig = {
+                chatContainerId: this.config.chatContainerId,
+                pictureContainerId: this.config.pictureContainerId
+            }
 
-            this.api = new Api( { 
-                ...this.userConfig.api,
-                kaiaClientId: this.clientId,
-            })
+            const uiControl = new UIControl(uiControlConfig)
 
-            const audioControlConfig = {
-                playSounds: true,
-                onWakeword: () => this.uiControl.addChatMessage('Wakeword detected', { type: 'service' }),
+            const apiConfig: IApiConfig = {
+                sessionId: this.config.sessionId,
+                kaiaServerBaseUrl: this.config.kaiaServerBaseUrl,
+                audioServerBaseUrl: this.config.audioServerBaseUrl,
+            }
+
+            const api = new Api(apiConfig)
+
+            const audioControlConfig: Partial<IAudioControlConfig> = {
+                wakeword: this.config.wakeword,
+
+                voskModelUrl: this.config.voskModelUrl,
+
+                playSounds: this.config.playSounds || true,
+                onWakeword: () => uiControl.addChatMessage('Wakeword detected', { type: 'service' }),
 
                 onStartRecording: () => {
-                    this.uiControl.addChatMessage(`Recording just started`, { type: 'service' })
+                    uiControl.addChatMessage(`Recording just started`, { type: 'service' })
                 },
 
-                onRecordingChunk: async (index, audioChunks) => {
+                onRecordingChunk: async (index: number, audioChunks: Blob[]) => {
                     console.debug(`[kaia] Recording chunk reported: index=${index}, totalChunks=${audioChunks.length}`)
-                    await this.api.uploadAudioChunk({ index, audioChunks });
+                    await api.uploadAudioChunk(index, audioChunks);
                 },
 
                 onStopRecording: async () => {
                     console.debug('[kaia] Stopping recording')
-                    const stopRecordingResponse = await this.api.stopRecording()       
+                    const stopRecordingResponse = await api.stopRecording()
                     console.debug('[kaia] Stop recording response:', stopRecordingResponse)  
-                    this.uiControl.addChatMessage(`Recording saved to Kaia server, ${stopRecordingResponse.wav_filename}`, { type: 'service' }) 
+                    uiControl.addChatMessage(`Recording saved to Kaia server, ${stopRecordingResponse.wav_filename}`, { type: 'service' })
                     if (stopRecordingResponse && stopRecordingResponse.wav_filename) { 
-                        const response2 = await this.api.sendCommandAudio(stopRecordingResponse.wav_filename); 
+                        const response2 = await api.sendCommandAudio(stopRecordingResponse.wav_filename);
                         console.debug('[kaia] Sent audio command', response2);
-                    }   
-
+                    }
                 },
 
-                onAudioPlayEnd: async (path) => {
+                onAudioPlayEnd: async (path: string) => {
                     console.debug(`[kaia] Audio play ended, ${path} sending confirmation signal`)
-                    this.api.sendConfirmationAudio(path)
+                    api.sendConfirmationAudio(path)
                     setTimeout(this.processUpdates.bind(this), 1)
                 },
 
-                onVolumeChange: async (volume) => {}
+                onVolumeChange: async (volume: number) => {}
             }
-            this.audioControl = new AudioControl({ 
-                ...this.config.audioControl,
-                ...audioControlConfig
-             })
-            await this.audioControl.initialize()
+
+            const audioControl = new AudioControl(audioControlConfig)
+            await audioControl.initialize()
+
+            this.api = api
+            this.audioControl = audioControl
+            this.uiControl = uiControl
 
             // todo @toplenboren add strong typing
-            const initializeResponse = await this.api.commandInitialize()
+            const initializeResponse = await api.commandInitialize()
             console.info('initializeResponse', initializeResponse)
 
-            this.lastMessageId = 0 // todo @toplenboren what if I want to continue my dialog?
             setTimeout(this.processUpdates.bind(this), 1)
 
-            this.uiControl.addChatMessage(`Please say: "${this.wakeword}" and start talking.. Kaia client_id is ${this.sessionId}.`, { type: 'service' })
+            uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}.`, { type: 'service' })
         } catch (error) {
             console.error('[kaia] Failed to initialize Kaia:', error)
         }
     }
 }
 
-const kaia = new KaiaApp();
+let userConfig = {}
 
-// kaia is singleton
-export { kaia as default }; 
+if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search)
+    const configParam = urlParams.get('config')
+    
+    if (configParam) {
+        try {
+            userConfig = JSON.parse(decodeURIComponent(configParam))
+
+            console.debug('[kaia] User config detected', userConfig)
+        } catch (e) {
+            console.error('[kaia] Failed to parse config from URL:', e)
+        }
+    }
+}
+
+const kaia = new KaiaApp({
+    playSounds: true,
+
+    sessionId: 'test',
+    wakeword: 'computer',
+
+    voskModelUrl: '/vosk-model-small-en-us-0.15.zip',
+
+    chatContainerId: 'chatMessages',
+    pictureContainerId: 'pictureDisplay',
+
+    kaiaServerBaseUrl: 'http://localhost:8890',
+    audioServerBaseUrl: 'http://localhost:13000',
+
+    ...userConfig
+})
+
+export default kaia

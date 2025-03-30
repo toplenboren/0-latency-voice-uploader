@@ -17,5 +17,8 @@
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.27.0",
     "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "vosk-browser": "^0.0.8"
   }
 }

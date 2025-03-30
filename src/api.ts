@@ -9,27 +9,23 @@ export interface IApiConfig {
 }
 
 export class Api {
-    sessionId: string
-    audioServerBaseUrl: string
-    kaiaServerBaseUrl: string
+    config: IApiConfig
 
     constructor(config: IApiConfig) {
-        this.audioServerBaseUrl = config.audioServerBaseUrl
-        this.kaiaServerBaseUrl = config.kaiaServerBaseUrl
-        this.sessionId = config.sessionId
+        this.config = config
     }
     
-    async uploadAudioChunk( index: string, audioChunks: Blob[] ) {
+    async uploadAudioChunk( index: number, audioChunks: Blob[] ) {
         if (index === undefined || !Array.isArray(audioChunks)) {
             throw new Error('[api] audio chunk index is undefined, or audio chunks is not an array')
         }
 
         const formData = new FormData();
-        formData.append('client_id', this.sessionId);
-        formData.append('index', index);
+        formData.append('client_id', this.config.sessionId);
+        formData.append('index', index.toString());
         formData.append('blob', new Blob(audioChunks, { type: 'audio/wav' }));
     
-        const url = this.audioServerBaseUrl + '/audio'
+        const url = this.config.audioServerBaseUrl + '/audio'
 
         return this._sendRequest(url, {
             method: 'POST',
@@ -37,8 +33,8 @@ export class Api {
         });
     }
 
-    async sendConfirmationAudio(path) {
-        const url = `${this.kaiaServerBaseUrl}/command/${this.sessionId}/confirmation_audio`
+    async sendConfirmationAudio(path: string) {
+        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/confirmation_audio`
 
         const filename = path.split('/').pop()
 
@@ -49,7 +45,7 @@ export class Api {
     }
 
     async sendCommandAudio(filename: string) {
-        const url = `${this.kaiaServerBaseUrl}/command/${this.sessionId}/command_audio`
+        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/command_audio`
 
         return this._sendRequest(url, {
             method: 'POST',
@@ -59,9 +55,9 @@ export class Api {
 
     async stopRecording() {
         const formData = new FormData();
-        formData.append('client_id', this.sessionId);
+        formData.append('client_id', this.config.sessionId);
 
-        const url = this.audioServerBaseUrl + '/audio_end'
+        const url = this.config.audioServerBaseUrl + '/audio_end'
 
         const response = await this._sendRequest(url, {
             method: 'POST',
@@ -72,7 +68,7 @@ export class Api {
     }
 
     async commandInitialize() {
-        const url = `${this.kaiaServerBaseUrl}/command/${this.sessionId}/command_initialize`
+        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/command_initialize`
 
         return this._sendRequest(url, {
             method: 'POST',
@@ -80,12 +76,12 @@ export class Api {
         })
     }
 
-    async getUpdates(lastMessageId: string) {
-        if (lastMessageId === undefined) {
+    async getUpdates(lastMessageIndex: number) {
+        if (lastMessageIndex === undefined) {
             throw new Error('[api] lastMessageId can not be undefined')
         }
 
-        const url = `${this.kaiaServerBaseUrl}/updates/${this.sessionId}/${lastMessageId}`
+        const url = `${this.config.kaiaServerBaseUrl}/updates/${this.config.sessionId}/${lastMessageIndex.toString()}`
 
         return this._sendRequest(url, {
             method: 'GET'
