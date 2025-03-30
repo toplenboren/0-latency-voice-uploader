@@ -37,7 +37,9 @@ This package uses vosk offline speech recognition.
 - download more models: [text](https://alphacephei.com/vosk/models)
 
 
+## How it works
 
+![arch.png](docs/arch.png)
 
 
 
