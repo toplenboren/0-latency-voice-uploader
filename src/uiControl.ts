@@ -8,28 +8,34 @@ export interface IUIControlConfig {
 }
 
 export class UIControl {
+    config
+
     chatContainer: HTMLElement
     pictureContainer: HTMLElement
 
-    constructor(userConfig: IUIControlConfig) {
-        const config = {
-            chatContainerId: 'chatMessages',
-            pictureContainerId: 'pictureDisplay',
-            
-            ...userConfig
-        };
+    constructor(config: IUIControlConfig) {
+        this.config = config
 
-        this.chatContainer = document.getElementById(config.chatContainerId);
-        this.pictureContainer = document.getElementById(config.pictureContainerId);
+        const chatContainer = document.getElementById(this.config.chatContainerId);
+        const pictureContainer = document.getElementById(this.config.pictureContainerId);
+
+        if (!chatContainer || !pictureContainer) {
+            throw new Error ('Chat or picture container failed to initialize')
+        }
         
         // Add placeholder for the main picture container
         const placeholder = document.createElement('div');
         placeholder.className = 'picture-placeholder';
         placeholder.innerHTML = '<i class="bi bi-robot"></i>';
-        this.pictureContainer.parentElement.appendChild(placeholder);
+        // todo: @toplenboren fix this
+        // @ts-ignore
+        pictureContainer.parentElement.appendChild(placeholder);
+
+        this.chatContainer = chatContainer
+        this.pictureContainer = pictureContainer
     }
 
-    addChatMessage (message: string, options: { type: 'from'|'to'|'service', avatar: string }) {
+    addChatMessage (message: string, options: { type: 'from'|'to'|'service', avatar?: string }) {
         const { type = 'from', avatar } = options;
         
         const messageEl = document.createElement('div');
@@ -65,9 +71,11 @@ export class UIControl {
         this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
 
-    changePicture(pictureUrl) {
+    changePicture(pictureUrl: string) {
+
         // @ts-ignore
         this.pictureContainer.src = pictureUrl;
+        // @ts-ignore
         const placeholder = this.pictureContainer.parentElement.querySelector('.picture-placeholder');
         if (pictureUrl) {
             // @ts-ignore
