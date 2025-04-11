@@ -11,31 +11,28 @@ export class UIControl {
     config
 
     chatContainer: HTMLElement
-    pictureContainer: HTMLElement
+    pictureContainer: HTMLImageElement
 
     constructor(config: IUIControlConfig) {
         this.config = config
 
-        const chatContainer = document.getElementById(this.config.chatContainerId);
-        const pictureContainer = document.getElementById(this.config.pictureContainerId);
+        const chatContainer = document.getElementById(this.config.chatContainerId) as HTMLDivElement
+        const pictureContainer = document.getElementById(this.config.pictureContainerId) as HTMLImageElement
 
-        if (!chatContainer || !pictureContainer) {
+        if (!chatContainer || !pictureContainer || !pictureContainer.parentElement) {
             throw new Error ('Chat or picture container failed to initialize')
         }
-        
-        // Add placeholder for the main picture container
+
         const placeholder = document.createElement('div');
         placeholder.className = 'picture-placeholder';
         placeholder.innerHTML = '<i class="bi bi-robot"></i>';
-        // todo: @toplenboren fix this
-        // @ts-ignore
         pictureContainer.parentElement.appendChild(placeholder);
 
         this.chatContainer = chatContainer
         this.pictureContainer = pictureContainer
     }
 
-    addChatMessage (message: string, options: { type: 'from'|'to'|'service', avatar?: string }) {
+    addChatMessage(message: string, options: { avatar?: string, type: string }) {
         const { type = 'from', avatar } = options;
         
         const messageEl = document.createElement('div');
@@ -73,16 +70,10 @@ export class UIControl {
 
     changePicture(pictureUrl: string) {
 
-        // @ts-ignore
-        this.pictureContainer.src = pictureUrl;
-        // @ts-ignore
-        const placeholder = this.pictureContainer.parentElement.querySelector('.picture-placeholder');
-        if (pictureUrl) {
-            // @ts-ignore
-            placeholder.style.display = 'none';
-        } else {
-            // @ts-ignore
-            placeholder.style.display = 'flex';
+        if (!this.pictureContainer || !this.pictureContainer.src || !this.pictureContainer.parentElement) {
+            throw new Error ('Chat or picture container failed to initialize')
         }
+
+        this.pictureContainer.src = pictureUrl
     }
 }

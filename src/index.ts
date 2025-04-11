@@ -61,7 +61,6 @@ class KaiaApp {
                     avatar: payloadAvatar ? payloadAvatarPath : undefined
                 }
 
-                // @ts-ignore
                 this.uiControl.addChatMessage(payloadText, chatMessageOptions)
             }
             
@@ -81,6 +80,8 @@ class KaiaApp {
             }
 
             // todo: @toplenboren what to do with that?
+            // This occurs when kaia server is restarted. This is the first message to be put in query
+            // This means that we might want restart the chat
             // if (element['type'] == 'notification_driver_start') {
             //     initialize_next = true
             // }
@@ -112,10 +113,10 @@ class KaiaApp {
                 voskModelUrl: this.config.voskModelUrl,
 
                 playSounds: this.config.playSounds || true,
-                onWakeword: () => uiControl.addChatMessage('Wakeword detected', { type: 'service' }),
+                onWakeword: () => uiControl.addChatMessage('Wakeword detected', {type: 'service'}),
 
                 onStartRecording: () => {
-                    uiControl.addChatMessage(`Recording just started`, { type: 'service' })
+                    uiControl.addChatMessage(`Recording just started`, {type: 'service'})
                 },
 
                 onRecordingChunk: async (index: number, audioChunks: Blob[]) => {
@@ -127,7 +128,7 @@ class KaiaApp {
                     console.debug('[kaia] Stopping recording')
                     const stopRecordingResponse = await api.stopRecording()
                     console.debug('[kaia] Stop recording response:', stopRecordingResponse)  
-                    uiControl.addChatMessage(`Recording saved to Kaia server, ${stopRecordingResponse.wav_filename}`, { type: 'service' })
+                    uiControl.addChatMessage(`Recording saved to Kaia server, ${stopRecordingResponse.wav_filename}`, {type: 'service'})
                     if (stopRecordingResponse && stopRecordingResponse.wav_filename) { 
                         const response2 = await api.sendCommandAudio(stopRecordingResponse.wav_filename);
                         console.debug('[kaia] Sent audio command', response2);
@@ -156,7 +157,7 @@ class KaiaApp {
 
             setTimeout(this.processUpdates.bind(this), 1)
 
-            uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}.`, { type: 'service' })
+            uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}.`, {type: 'service'})
         } catch (error) {
             console.error('[kaia] Failed to initialize Kaia:', error)
         }

@@ -40,13 +40,13 @@ export interface IAudioControlConfig {
     playSounds: boolean,
 
     // How much noise is considered silence?
-    silenceThreshold?: number
+    silenceThreshold: number
 
     // How much time to wait from silence start until ending recording
-    silenceTimeDelta?: number
+    silenceTimeDelta: number
 
     // chunk length for mediarecorder
-    recordingChunkLength?: number
+    recordingChunkLength: number
 
     // How often to collect chunks in milliseconds
     mediaRecorderChunkLength?: number
@@ -98,6 +98,10 @@ export class AudioControl {
 
     constructor(userConfig: Partial<IAudioControlConfig>) {
         const config = { ...DEFAULT_AUDIO_CONTROL_CONFIG, ...userConfig } as IAudioControlConfig;
+
+        if (!config.recordingChunkLength || !config.mediaRecorderChunkLength) {
+            throw new Error(`recordingChunkLength or mediaRecorderChunkLength are undefined`)
+        }
 
         if (config.recordingChunkLength <= config.mediaRecorderChunkLength) {
             throw new Error(`RecordingChunkLength should be bigger then ${config.mediaRecorderChunkLength}`)
