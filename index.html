@@ -9,31 +9,29 @@
     <link href="styles.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
-<body>
-    <div class="container-fluid h-100">
-        <div class="row h-100 g-4">
+<body class="vh-100 overflow-hidden">
+    <div class="container-fluid h-100 p-2">
+        <div class="row h-100 g-3">
             <div class="col-8 h-100">
-                <div class="picture-container h-100">
-                    <img id="pictureDisplay" src="" alt="AI Generated Image">
+                <div class="picture-container h-100 d-flex align-items-center justify-content-center rounded border shadow-sm overflow-hidden position-relative">
+                    <img id="pictureDisplay" src="placeholder.svg" alt="" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover">
                 </div>
             </div>
 
             <div class="col-4 h-100 d-flex flex-column">
-                <!-- Navbar -->
-                <nav class="navbar mb-3">
+                <nav class="navbar rounded border shadow-sm mb-3 p-1">
                     <div class="container-fluid">
-                        <a class="navbar-brand" href="#">kaia<span class="badge text-bg-secondary ms-2">wip</span></a>
+                        <a class="navbar-brand fw-semibold fs-6" href="#">kaia<span class="badge text-bg-secondary ms-2">α</span></a>
                         <div class="navbar-nav ms-auto d-flex flex-row gap-2">
-                            <button class="btn theme-toggle" onclick="toggleTheme(this)">☀️</button>
-                            <button class="btn settings-btn" onclick="openSettings()">
+                            <button class="btn btn-sm btn-secondary rounded-3" onclick="toggleTheme(this)">☀️</button>
+                            <button class="btn btn-sm btn-secondary rounded-3" onclick="openSettings()">
                                 <i class="bi bi-gear"></i>
                             </button>
                         </div>
                     </div>
                 </nav>
 
-                <!-- Chat Container -->
-                <div id="chatMessages" class="chat-container flex-grow-1"></div>
+                <div id="chatMessages" class="flex-grow-1 border rounded shadow-sm p-3 overflow-auto bg-body"></div>
             </div>
         </div>
     </div>
@@ -41,27 +39,21 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module">
         import kaia from './src/index.ts';
-
         kaia.initialize();
     </script>
     <script>
-        // Initialize theme based on system preference
         function initializeTheme() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const html = document.documentElement;
-            const themeBtn = document.querySelector('.theme-toggle');
+            const themeBtn = document.querySelector('button[onclick="toggleTheme(this)"]');
             
             html.setAttribute('data-bs-theme', prefersDark ? 'dark' : 'light');
             themeBtn.textContent = prefersDark ? '🌙' : '☀️';
         }
 
-        // Listen for system theme changes
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', initializeTheme);
-
-        // Initialize on load
         initializeTheme();
 
-        // Theme toggle function
         function toggleTheme(btn) {
             const html = document.documentElement;
             if (html.getAttribute('data-bs-theme') === 'dark') {
@@ -74,7 +66,6 @@
         }
     </script>
 
-    <!-- Add this right before the closing body tag -->
     <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel">
         <div class="modal-dialog modal-fullscreen">
             <div class="modal-content">
@@ -85,20 +76,24 @@
                 <div class="modal-body">
                     <form id="settingsForm">
                         <div class="mb-3">
-                            <label for="wakeWord" class="form-label">Wake Word</label>
-                            <input type="text" class="form-control" id="wakeWord" value="computer">
+                            <label for="settingsWakeWord" class="form-label">Wake Word</label>
+                            <input type="text" class="form-control" id="settingsWakeWord" value="computer">
                         </div>
                         <div class="mb-3">
-                            <label for="silenceThreshold" class="form-label">Silence Threshold</label>
-                            <input type="range" class="form-range" id="silenceThreshold" min="0" max="100" value="15">
+                            <label for="settingsSessionId" class="form-label">Session ID</label>
+                            <input type="text" class="form-control" id="settingsSessionId" value="test">
                         </div>
                         <div class="mb-3">
-                            <label for="silenceTimeout" class="form-label">Silence Timeout (ms)</label>
-                            <input type="number" class="form-control" id="silenceTimeout" value="1500">
+                            <label for="settingsVoskModelUrl" class="form-label">Vosk Model URL</label>
+                            <input type="text" class="form-control" id="settingsVoskModelUrl" value="/vosk-model-small-en-us-0.15.zip">
                         </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="playSounds">
-                            <label class="form-check-label" for="playSounds">Play Sounds</label>
+                        <div class="mb-3">
+                            <label for="settingsKaiaServerBaseUrl" class="form-label">Kaia Server URL</label>
+                            <input type="text" class="form-control" id="settingsKaiaServerBaseUrl" value="http://127.0.0.1:8890">
+                        </div>
+                        <div class="mb-3">
+                            <label for="settingsAudioServerBaseUrl" class="form-label">Audio Server URL</label>
+                            <input type="text" class="form-control" id="settingsAudioServerBaseUrl" value="http://127.0.0.1:13000">
                         </div>
                     </form>
                 </div>
@@ -110,7 +105,6 @@
         </div>
     </div>
 
-    <!-- Add this to your existing script section -->
     <script>
         let settingsModal;
         
@@ -118,12 +112,38 @@
             if (!settingsModal) {
                 settingsModal = new bootstrap.Modal(document.getElementById('settingsModal'));
             }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const configParam = urlParams.get('config');
+            
+            if (configParam) {
+                try {
+                    const config = JSON.parse(decodeURIComponent(configParam));
+                    
+                    if (config.wakeword) document.getElementById('settingsWakeWord').value = config.wakeword;
+                    if (config.sessionId) document.getElementById('settingsSessionId').value = config.sessionId;
+                    if (config.voskModelUrl) document.getElementById('settingsVoskModelUrl').value = config.voskModelUrl;
+                    if (config.kaiaServerBaseUrl) document.getElementById('settingsKaiaServerBaseUrl').value = config.kaiaServerBaseUrl;
+                    if (config.audioServerBaseUrl) document.getElementById('settingsAudioServerBaseUrl').value = config.audioServerBaseUrl;
+                } catch (e) {
+                    console.error('[kaia] Failed to parse config from URL:', e);
+                }
+            }
+            
             settingsModal.show();
         }
 
         function saveSettings() {
+            const settings = {
+                wakeword: document.getElementById('settingsWakeWord').value,
+                sessionId: document.getElementById('settingsSessionId').value,
+                voskModelUrl: document.getElementById('settingsVoskModelUrl').value,
+                kaiaServerBaseUrl: document.getElementById('settingsKaiaServerBaseUrl').value,
+                audioServerBaseUrl: document.getElementById('settingsAudioServerBaseUrl').value
+            };
 
-            settingsModal.hide();
+            const configString = encodeURIComponent(JSON.stringify(settings));
+            window.location.search = `?config=${configString}`;
         }
     </script>
 </body>

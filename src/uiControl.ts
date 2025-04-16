@@ -5,16 +5,19 @@
 export interface IUIControlConfig {
     chatContainerId: string
     pictureContainerId: string
+    placeholderImagePath?: string
 }
 
 export class UIControl {
     config
+    placeholderImagePath: string
 
     chatContainer: HTMLElement
     pictureContainer: HTMLImageElement
 
     constructor(config: IUIControlConfig) {
         this.config = config
+        this.placeholderImagePath = config.placeholderImagePath || 'placeholder.svg'
 
         const chatContainer = document.getElementById(this.config.chatContainerId) as HTMLDivElement
         const pictureContainer = document.getElementById(this.config.pictureContainerId) as HTMLImageElement
@@ -22,11 +25,6 @@ export class UIControl {
         if (!chatContainer || !pictureContainer || !pictureContainer.parentElement) {
             throw new Error ('Chat or picture container failed to initialize')
         }
-
-        const placeholder = document.createElement('div');
-        placeholder.className = 'picture-placeholder';
-        placeholder.innerHTML = '<i class="bi bi-robot"></i>';
-        pictureContainer.parentElement.appendChild(placeholder);
 
         this.chatContainer = chatContainer
         this.pictureContainer = pictureContainer
@@ -69,11 +67,28 @@ export class UIControl {
     }
 
     changePicture(pictureUrl: string) {
-
         if (!this.pictureContainer || !this.pictureContainer.src || !this.pictureContainer.parentElement) {
             throw new Error ('Chat or picture container failed to initialize')
         }
 
         this.pictureContainer.src = pictureUrl
+    }
+
+    clearChat() {
+        if (!this.chatContainer) {
+            throw new Error('Chat container failed to initialize')
+        }
+
+        while (this.chatContainer.firstChild) {
+            this.chatContainer.removeChild(this.chatContainer.firstChild)
+        }
+    }
+
+    clearPicture() {
+        if (!this.pictureContainer || !this.pictureContainer.parentElement) {
+            throw new Error('Picture container failed to initialize')
+        }
+
+        this.pictureContainer.src = this.placeholderImagePath
     }
 }

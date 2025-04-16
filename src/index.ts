@@ -11,6 +11,7 @@ interface IKaiaConfig {
 
     chatContainerId: string
     pictureContainerId: string,
+    placeholderImagePath?: string,
 
     kaiaServerBaseUrl: string,
     audioServerBaseUrl: string,
@@ -76,25 +77,24 @@ class KaiaApp {
                 const audioPath = `${this.api.config.kaiaServerBaseUrl}/file/${audioName}`
 
                 this.audioControl.playAudio(audioPath)
-                return
             }
 
-            // todo: @toplenboren what to do with that?
             // This occurs when kaia server is restarted. This is the first message to be put in query
-            // This means that we might want restart the chat
-            // if (element['type'] == 'notification_driver_start') {
-            //     initialize_next = true
-            // }
+            // This means that we need to restart chat
+            if (update['type'] == 'notification_driver_start') {
+                this.uiControl.addChatMessage('Kaia server was restarted', { type: "service" })
+            }
         }
 
-        setTimeout(() => this.processUpdates(), 1000)
+        setTimeout(this.processUpdates.bind(this), 1000)
     }
 
     async initialize() {
         try {
             const uiControlConfig: IUIControlConfig = {
                 chatContainerId: this.config.chatContainerId,
-                pictureContainerId: this.config.pictureContainerId
+                pictureContainerId: this.config.pictureContainerId,
+                placeholderImagePath: this.config.placeholderImagePath
             }
 
             const uiControl = new UIControl(uiControlConfig)
@@ -151,13 +151,21 @@ class KaiaApp {
             this.audioControl = audioControl
             this.uiControl = uiControl
 
-            // todo @toplenboren add strong typing
-            const initializeResponse = await api.commandInitialize()
-            console.info('initializeResponse', initializeResponse)
-
-            setTimeout(this.processUpdates.bind(this), 1)
-
-            uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}.`, {type: 'service'})
+             try {
+                const initializeResponse = await api.commandInitialize()
+                console.info('initializeResponse', initializeResponse)
+                
+                if (initializeResponse && initializeResponse.id) {
+                    this.lastMessageIndex = initializeResponse.id
+                }
+                
+                uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}. Last message index: ${this.lastMessageIndex}`, {type: 'service'})
+                setTimeout(this.processUpdates.bind(this), 1)
+            } catch (error) {
+                console.error('[kaia] Failed to initialize Kaia server:', error)
+                uiControl.addChatMessage('Unable to connect to Kaia server. Please check if Kaia server is running', {type: 'service'})
+                uiControl.addChatMessage(`Current server URL: ${this.config.kaiaServerBaseUrl}`, {type: 'service'})
+            }
         } catch (error) {
             console.error('[kaia] Failed to initialize Kaia:', error)
         }
@@ -191,6 +199,7 @@ const kaia = new KaiaApp({
 
     chatContainerId: 'chatMessages',
     pictureContainerId: 'pictureDisplay',
+    placeholderImagePath: 'placeholder.svg',
 
     kaiaServerBaseUrl: 'http://localhost:8890',
     audioServerBaseUrl: 'http://localhost:13000',

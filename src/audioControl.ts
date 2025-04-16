@@ -227,15 +227,12 @@ export class AudioControl {
         // @ts-ignore
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Initialize audio processing
         const source = audioContext.createMediaStreamSource(audioStream);
-        
-        // Load audio worklet
         const processorUrl = new URL('/wav-recorder-processor.js', window.location.href).href;
+        
         await audioContext.audioWorklet.addModule(processorUrl);
         const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-recorder-processor');
         
-        // Handle audio data from worklet
         audioWorkletNode.port.onmessage = async (e) => {
             if (e.data.type === 'chunk') {
                 const blob = new Blob([e.data.audioData], { type: 'audio/wav' });
@@ -417,6 +414,7 @@ export class AudioControl {
         
         this._changeState(STATES.RECORDING);
         this.audioChunks = [];
+        this.currentRecordingId = Date.now().toString();
         this.audioWorkletNode.port.postMessage({ command: 'start' });
         this._playStartSound();
 
