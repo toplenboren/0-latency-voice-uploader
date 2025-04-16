@@ -1,24 +1,25 @@
+/* global AudioWorkletProcessor, registerProcessor, sampleRate */
+
 class RecognizerAudioProcessor extends AudioWorkletProcessor {
-    constructor(options) {
-        super(options);
+    constructor (options) {
+        super(options)
         
-        this.port.onmessage = this._processMessage.bind(this);
+        this.port.onmessage = this._processMessage.bind(this)
     }
     
-    _processMessage(event) {
-        // console.debug(`Received event ${JSON.stringify(event.data, null, 2)}`);
+    _processMessage (event) {
         if (event.data.action === "init") {
-            this._recognizerId = event.data.recognizerId;
-            this._recognizerPort = event.ports[0];
+            this._recognizerId = event.data.recognizerId
+            this._recognizerPort = event.ports[0]
         }
     }
     
-    process(inputs, outputs, parameters) {
-        const data = inputs[0][0];
+    process (inputs) {
+        const data = inputs[0][0]
         if (this._recognizerPort && data) {
             // AudioBuffer samples are represented as floating point numbers between -1.0 and 1.0 whilst
             // Kaldi expects them to be between -32768 and 32767 (the range of a signed int16)
-            const audioArray = data.map((value) => value * 0x8000);
+            const audioArray = data.map((value) => value * 0x8000)
         
             this._recognizerPort.postMessage(
                 {
@@ -30,9 +31,9 @@ class RecognizerAudioProcessor extends AudioWorkletProcessor {
                 {
                     transfer: [audioArray.buffer],
                 }
-            );
+            )
         }
-        return true;
+        return true
     }
 }
 

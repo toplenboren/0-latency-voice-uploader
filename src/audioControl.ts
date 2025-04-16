@@ -8,7 +8,8 @@
  * 3. Volume control
  */
 
-import { createModel } from 'vosk-browser';
+import { createModel } from 'vosk-browser'
+import { RecognizerMessage } from 'vosk-browser/dist/interfaces'
 
 export enum STATES {
     STANDBY = 'standby',
@@ -34,8 +35,8 @@ export interface IAudioControlConfig {
     onRecordingChunk: (index: number, audioChunks: Blob[]) => void
 
     onVolumeChange?: (volume: number) => void
-    onAudioPlayStart?: (path: string) => void
     onAudioPlayEnd?: (path: string) => void
+    onStateChange?: (state: string) => void
 
     playSounds: boolean,
 
@@ -75,7 +76,7 @@ const DEFAULT_AUDIO_CONTROL_CONFIG: Partial<IAudioControlConfig> = {
     sampleInterval: 60,
     fftSize: 256,
     smoothingTimeConstant: 0.8,
-};
+}
 
 export class AudioControl {
     private config: IAudioControlConfig
@@ -84,20 +85,20 @@ export class AudioControl {
     private audioStream?: MediaStream
     private audioContext?: AudioContext
     private analyser?: AnalyserNode
-    private microphone: any
+    private microphone?: MediaStreamAudioSourceNode
 
     private chunkIsBeingSent: boolean
     private currentRecordingId: string | null
     private audioChunks: Blob[]
     private lastChunkIndex: number
     private lastSendTime: number
-    private audioWorkletNode?: AudioWorkletNode;
-    private volumeHistory: number[];
-    private silenceStartTime: number | null;
-    private historyIndex: number;
+    private audioWorkletNode?: AudioWorkletNode
+    private volumeHistory: number[]
+    private silenceStartTime: number | null
+    private historyIndex: number
 
-    constructor(userConfig: Partial<IAudioControlConfig>) {
-        const config = { ...DEFAULT_AUDIO_CONTROL_CONFIG, ...userConfig } as IAudioControlConfig;
+    constructor (userConfig: Partial<IAudioControlConfig>) {
+        const config = { ...DEFAULT_AUDIO_CONTROL_CONFIG, ...userConfig } as IAudioControlConfig
 
         if (!config.recordingChunkLength || !config.mediaRecorderChunkLength) {
             throw new Error(`recordingChunkLength or mediaRecorderChunkLength are undefined`)
@@ -111,71 +112,77 @@ export class AudioControl {
 
         this.state = STATES.STANDBY
         
-        this.currentRecordingId = null;
-        this.audioChunks = [];
-        this.lastChunkIndex = 0;
-        this.lastSendTime = 0;
+        this.currentRecordingId = null
+        this.audioChunks = []
+        this.lastChunkIndex = 0
+        this.lastSendTime = 0
         this.chunkIsBeingSent = false
 
-        this.volumeHistory = new Array(this.config.volumeHistorySeconds * this.config.sampleInterval).fill(0);
-        this.historyIndex = 0;
-        this.silenceStartTime = null;
+        this.volumeHistory = new Array(this.config.volumeHistorySeconds * this.config.sampleInterval).fill(0)
+        this.historyIndex = 0
+        this.silenceStartTime = null
     }
 
-    _changeState(newState: STATES): void {
-        console.debug(`[audioControl] changing state: from ${this.state} to ${newState}`);
-        this.state = newState;
+    _changeState (newState: STATES): void {
+        console.debug(`[audioControl] changing state: from ${this.state} to ${newState}`)
+        this.state = newState
+        
+        if (this.config.onStateChange) {
+            this.config.onStateChange(newState)
+        }
     }
 
-    getState() {
+    getState () {
         return this.state
     }
 
-    _playStartSound() {
+    _playStartSound () {
         if (!this.config.playSounds) { return }
         this._playSound('/sounds/beep_lo.wav')
     }
 
-    _playErrorSound() {
+    _playErrorSound () {
         if (!this.config.playSounds) { return }
         this._playSound('/sounds/beep_error.wav')
     }
 
-    _playStopSound() {
+    _playStopSound () {
         if (!this.config.playSounds) { return }
         this._playSound('/sounds/beep_hi.wav')
     }
 
-    _playSound(path: string, onPlaybackEnd: Function | null = null) {
-        const audio = new Audio(path);
+    _playSound (path: string, onPlaybackEnd: (() => void) | null = null) {
+        const audio = new Audio(path)
         audio.play().catch(error => {
-            console.warn('[audioControl] Failed to play start sound:', error);
-        });
+            console.warn('[audioControl] Failed to play start sound:', error)
+        })
 
         audio.addEventListener("ended", () => {
             if (onPlaybackEnd) { onPlaybackEnd() }
         })
     }
 
-    async initialize() {
+    async initialize () {
         try {
             console.debug('[audioControl] Initializing audio control Microphone...')
-            await this._setupMicrophone();
+            await this._setupMicrophone()
             
             console.debug('[audioControl] Initializing volume control...')
-            await this._setupVolumeControl();
+            await this._setupVolumeControl()
 
             console.debug('[audioControl] Initializing wakeword detection...')
-            await this._setupVoiceRecognition();
+            await this._setupVoiceRecognition()
         } catch (error) {
-            console.error('[audioControl] Initialization failed:', error);
+            console.error('[audioControl] Initialization failed:', error)
         }
     }
 
-    async _onWakeword() {
+    async _onWakeword () {
         console.info('[audioControl] Wakeword detected')
-
-        // State processing.
+        
+        if (this.getState() !== STATES.STANDBY) {
+            return
+        }
 
         if (this.config.onWakeword) {
             this.config.onWakeword()
@@ -184,10 +191,10 @@ export class AudioControl {
         await this.startRecording()
     }
 
-    async _sendPendingChunks() {
+    async _sendPendingChunks () {
         console.debug(`[audioControl] Send pending chunks called. total chunks to send: ${this.audioChunks.length}`)
 
-        const now = Date.now();
+        const now = Date.now()
 
         if (this.audioChunks.length === 0) {
             return
@@ -206,7 +213,7 @@ export class AudioControl {
         }
     }
 
-    async _onRecordingChunkReady() {
+    async _onRecordingChunkReady () {
         console.log('[audioControl] Recording chunk is ready')
 
         await this._sendPendingChunks()
@@ -214,73 +221,72 @@ export class AudioControl {
         this.chunkIsBeingSent = false
     }
 
-    async _setupMicrophone() {
+    async _setupMicrophone () {
         const audioStream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
                 channelCount: 1
             }
-        });
+        })
 
-        // In Apple garden you may not have access to AudioContext, but will have access to webkitAudioContext
-        // @ts-ignore
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // @ts-expect-error - In Apple garden you may not have access to AudioContext, but will have access to webkitAudioContext
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)()
         
-        const source = audioContext.createMediaStreamSource(audioStream);
-        const processorUrl = new URL('/wav-recorder-processor.js', window.location.href).href;
+        const source = audioContext.createMediaStreamSource(audioStream)
+        const processorUrl = new URL('/wav-recorder-processor.js', window.location.href).href
         
-        await audioContext.audioWorklet.addModule(processorUrl);
-        const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-recorder-processor');
+        await audioContext.audioWorklet.addModule(processorUrl)
+        const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-recorder-processor')
         
         audioWorkletNode.port.onmessage = async (e) => {
             if (e.data.type === 'chunk') {
-                const blob = new Blob([e.data.audioData], { type: 'audio/wav' });
-                this.audioChunks.push(blob);
+                const blob = new Blob([e.data.audioData], { type: 'audio/wav' })
+                this.audioChunks.push(blob)
                 
                 if (!this.chunkIsBeingSent && this.getState() === STATES.RECORDING) {
-                    this.chunkIsBeingSent = true;
+                    this.chunkIsBeingSent = true
                     try {
-                        await this._onRecordingChunkReady();
+                        await this._onRecordingChunkReady()
                     } finally {
-                        this.chunkIsBeingSent = false;
-                        this.lastSendTime = Date.now();
+                        this.chunkIsBeingSent = false
+                        this.lastSendTime = Date.now()
                     }
                 }
             }
-        };
+        }
 
-        source.connect(audioWorkletNode);
-        audioWorkletNode.connect(audioContext.destination);
+        source.connect(audioWorkletNode)
+        audioWorkletNode.connect(audioContext.destination)
 
         this.audioContext = audioContext
         this.audioStream = audioStream
         this.audioWorkletNode = audioWorkletNode
     }
 
-    async _setupVolumeControl() {
+    async _setupVolumeControl () {
         if (!this.audioContext || !this.audioStream) {
             throw new Error('Audio context or audio stream are not yet initialized')
         }
 
-        const analyser = this.audioContext.createAnalyser();
-        const microphone = this.audioContext.createMediaStreamSource(this.audioStream);
-        microphone.connect(analyser);
+        const analyser = this.audioContext.createAnalyser()
+        const microphone = this.audioContext.createMediaStreamSource(this.audioStream)
+        microphone.connect(analyser)
         
-        analyser.fftSize = this.config.fftSize;
-        analyser.smoothingTimeConstant = this.config.smoothingTimeConstant;
+        analyser.fftSize = this.config.fftSize
+        analyser.smoothingTimeConstant = this.config.smoothingTimeConstant
 
         const updateVolume = () => {
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(dataArray);
+            const dataArray = new Uint8Array(analyser.frequencyBinCount)
+            analyser.getByteFrequencyData(dataArray)
             
-            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-            this.volumeHistory[this.historyIndex] = Math.round(average);
-            this.historyIndex = (this.historyIndex + 1) % this.volumeHistory.length;
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length
+            this.volumeHistory[this.historyIndex] = Math.round(average)
+            this.historyIndex = (this.historyIndex + 1) % this.volumeHistory.length
             
             const meanVolume = Math.round(
                 this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length
-            );
+            )
             
             if (this.getState() === STATES.RECORDING) {
                 if (meanVolume < this.config.silenceThreshold) {
@@ -290,24 +296,24 @@ export class AudioControl {
                     } else if (Date.now() - this.silenceStartTime >= this.config.silenceTimeDelta) {
                         console.debug(`[audioControl] Stopping: silence lasted ${Date.now() - this.silenceStartTime}ms`)
                         this.stopRecording()
-                        this.silenceStartTime = null;
+                        this.silenceStartTime = null
                     }
                 } else {
-                    this.silenceStartTime = null;
+                    this.silenceStartTime = null
                 }
             }
 
             if (this.config.onVolumeChange) {
-                this.config.onVolumeChange(meanVolume);
+                this.config.onVolumeChange(meanVolume)
             }
 
             requestAnimationFrame(updateVolume)
-        };
+        }
 
         updateVolume()
     }
 
-    async _setupVoiceRecognition() {
+    async _setupVoiceRecognition () {
         if (!this.audioStream || !this.audioContext) {
             throw new Error('Audio stream or audio context are not yet initialized')
         }
@@ -321,23 +327,27 @@ export class AudioControl {
             const recognizer = new model.KaldiRecognizer(this.audioContext.sampleRate)
             recognizer.setWords(true)
 
-            recognizer.on("result", (message) => {
-                // @ts-ignore
-                const word = message?.result.text.toLowerCase().trim();
-                this._processRecognizedWord(word);
-            });
+            recognizer.on("result", (message: RecognizerMessage) => {
+                
+                // @ts-expect-error - RecognizerMessage structure varies by message type
+                const word = message?.result?.text?.toLowerCase().trim() || ''
+
+                console.debug('[audioControl] Recognition result:', message)
+
+                this._processRecognizedWord(word)
+            })
 
             const processorUrl = new URL('recognizer-processor.js', window.location.href).href
             await this.audioContext.audioWorklet.addModule(processorUrl)
             
             const recognizerProcessor = new AudioWorkletNode(this.audioContext, 'recognizer-processor', {
                 channelCount: 1
-            });
+            })
 
             recognizerProcessor.port.postMessage(
                 { action: 'init', recognizerId: recognizer.id },
                 [channel.port2]
-            );
+            )
 
             const source = this.audioContext.createMediaStreamSource(this.audioStream)
             source.connect(recognizerProcessor)
@@ -349,28 +359,31 @@ export class AudioControl {
         }
     }
 
-    _processRecognizedWord(word: string) {
-        if (word === this.config.wakeword && this.getState() !== STATES.PLAYING) {
+    _processRecognizedWord (word: string) {
+        if (word === this.config.wakeword) {
             this._onWakeword()
         }
-
-        // if (word === this.config.cancelword) {
-        //     this.cancelRecording()
-        // }
     }
 
-    async playAudio(path: string) {
+    async playAudio (path: string) {
         console.debug('[audioControl] playAudio signal detected')
         if (this.getState() === STATES.PLAYING) {
+            console.warn(`[audioControl] tried to play a sound ${path} outside of PLAYING state`)
             return
         }
 
         this._changeState(STATES.PLAYING)
 
-        this._playSound(path, () => this._changeState(STATES.STANDBY))
+        this._playSound(path, () => { 
+            this._changeState(STATES.STANDBY)
+            
+            if (this.config.onAudioPlayEnd) {
+                this.config.onAudioPlayEnd(path)
+            }
+        })
     }
 
-    async cancelRecording() {
+    async cancelRecording () {
         console.debug('[audioControl] Cancelling recording...')
 
         this.audioChunks = []
@@ -378,48 +391,48 @@ export class AudioControl {
         this.lastSendTime = 0
     }
 
-    async stopRecording() {
+    async stopRecording () {
         if (!this.audioWorkletNode) {
             throw new Error('Audio worklet node is not properly initialized')
         }
 
         if (this.getState() === STATES.RECORDING) {
-            console.debug('[audioControl] Ending recording...');
+            console.debug('[audioControl] Ending recording...')
             
             try {
-                this.audioWorkletNode.port.postMessage({ command: 'stop' });
-                this._changeState(STATES.STANDBY);
+                this.audioWorkletNode.port.postMessage({ command: 'stop' })
+                this._changeState(STATES.STANDBY)
                 
-                await this._sendPendingChunks();
+                await this._sendPendingChunks()
                 
                 if (this.config.onStopRecording && this.currentRecordingId) {
-                    await this.config.onStopRecording(this.currentRecordingId);
+                    await this.config.onStopRecording(this.currentRecordingId)
                 }
                 
-                console.debug('[audioControl] Recording stopped successfully');
-                this._playStopSound();
+                console.debug('[audioControl] Recording stopped successfully')
+                this._playStopSound()
             } catch (error) {
-                console.error('[audioControl] Error stopping recording:', error);
-                this._playErrorSound();
+                console.error('[audioControl] Error stopping recording:', error)
+                this._playErrorSound()
             }
         }
     }
 
-    async startRecording() {
+    async startRecording () {
         if (!this.audioWorkletNode) {
             throw new Error('Audio worklet node is not properly initialized')
         }
 
-        console.debug('[audioControl] Starting recording...');
+        console.debug('[audioControl] Starting recording...')
         
-        this._changeState(STATES.RECORDING);
-        this.audioChunks = [];
-        this.currentRecordingId = Date.now().toString();
-        this.audioWorkletNode.port.postMessage({ command: 'start' });
-        this._playStartSound();
+        this._changeState(STATES.RECORDING)
+        this.audioChunks = []
+        this.currentRecordingId = Date.now().toString()
+        this.audioWorkletNode.port.postMessage({ command: 'start' })
+        this._playStartSound()
 
         if (this.config.onStartRecording && this.currentRecordingId) {
-            await this.config.onStartRecording(this.currentRecordingId);
+            await this.config.onStartRecording(this.currentRecordingId)
         }
     }
 }

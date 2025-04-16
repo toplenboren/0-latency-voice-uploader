@@ -24,12 +24,34 @@
                         <a class="navbar-brand fw-semibold fs-6" href="#">kaia<span class="badge text-bg-secondary ms-2">α</span></a>
                         <div class="navbar-nav ms-auto d-flex flex-row gap-2">
                             <button class="btn btn-sm btn-secondary rounded-3" onclick="toggleTheme(this)">☀️</button>
+                            <button class="btn btn-sm btn-secondary rounded-3" onclick="toggleDebugMenu()">
+                                <i class="bi bi-bug"></i>
+                            </button>
                             <button class="btn btn-sm btn-secondary rounded-3" onclick="openSettings()">
                                 <i class="bi bi-gear"></i>
                             </button>
                         </div>
                     </div>
                 </nav>
+
+                <div id="debugMenu" class="rounded border shadow-sm mb-3 p-2 d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Volume</small>
+                        <span id="volumeValue" class="badge bg-primary">0</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 10px; position: relative;">
+                        <div id="volumeBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        <div id="thresholdIndicator" style="position: absolute; height: 100%; width: 2px; background-color: red; left: 15%; z-index: 5;"></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Threshold</small>
+                        <span id="thresholdValue" class="badge bg-danger">15</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">State</small>
+                        <span id="stateIndicator" class="badge bg-secondary">standby</span>
+                    </div>
+                </div>
 
                 <div id="chatMessages" class="flex-grow-1 border rounded shadow-sm p-3 overflow-auto bg-body"></div>
             </div>
@@ -64,6 +86,13 @@
                 btn.textContent = '🌙';
             }
         }
+
+        function toggleDebugMenu() {
+            const debugMenu = document.getElementById('debugMenu');
+            if (debugMenu) {
+                debugMenu.classList.toggle('d-none');
+            }
+        }
     </script>
 
     <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel">
@@ -95,6 +124,11 @@
                             <label for="settingsAudioServerBaseUrl" class="form-label">Audio Server URL</label>
                             <input type="text" class="form-control" id="settingsAudioServerBaseUrl" value="http://127.0.0.1:13000">
                         </div>
+                        <div class="mb-3">
+                            <label for="settingsSilenceThreshold" class="form-label">Silence Threshold</label>
+                            <input type="number" class="form-control" id="settingsSilenceThreshold" min="5" max="50" value="15">
+                            <div class="form-text">Lower values = more sensitive (ends recording sooner)</div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -125,6 +159,7 @@
                     if (config.voskModelUrl) document.getElementById('settingsVoskModelUrl').value = config.voskModelUrl;
                     if (config.kaiaServerBaseUrl) document.getElementById('settingsKaiaServerBaseUrl').value = config.kaiaServerBaseUrl;
                     if (config.audioServerBaseUrl) document.getElementById('settingsAudioServerBaseUrl').value = config.audioServerBaseUrl;
+                    if (config.silenceThreshold) document.getElementById('settingsSilenceThreshold').value = config.silenceThreshold;
                 } catch (e) {
                     console.error('[kaia] Failed to parse config from URL:', e);
                 }
@@ -139,7 +174,8 @@
                 sessionId: document.getElementById('settingsSessionId').value,
                 voskModelUrl: document.getElementById('settingsVoskModelUrl').value,
                 kaiaServerBaseUrl: document.getElementById('settingsKaiaServerBaseUrl').value,
-                audioServerBaseUrl: document.getElementById('settingsAudioServerBaseUrl').value
+                audioServerBaseUrl: document.getElementById('settingsAudioServerBaseUrl').value,
+                silenceThreshold: parseInt(document.getElementById('settingsSilenceThreshold').value)
             };
 
             const configString = encodeURIComponent(JSON.stringify(settings));

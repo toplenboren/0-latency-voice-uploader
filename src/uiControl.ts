@@ -15,7 +15,7 @@ export class UIControl {
     chatContainer: HTMLElement
     pictureContainer: HTMLImageElement
 
-    constructor(config: IUIControlConfig) {
+    constructor (config: IUIControlConfig) {
         this.config = config
         this.placeholderImagePath = config.placeholderImagePath || 'placeholder.svg'
 
@@ -30,43 +30,96 @@ export class UIControl {
         this.pictureContainer = pictureContainer
     }
 
-    addChatMessage(message: string, options: { avatar?: string, type: string }) {
-        const { type = 'from', avatar } = options;
+    addChatMessage (message: string, options: { avatar?: string, type: string }) {
+        const { type = 'from', avatar } = options
         
-        const messageEl = document.createElement('div');
-        messageEl.className = `chat-message ${type} rounded`;
+        const messageEl = document.createElement('div')
+        messageEl.className = `chat-message ${type} rounded`
 
-        const contentEl = document.createElement('div');
-        contentEl.className = 'chat-content';
-        contentEl.textContent = message;
+        const contentEl = document.createElement('div')
+        contentEl.className = 'chat-content'
+        contentEl.textContent = message
 
-        const avatarEl = document.createElement('div');
-        avatarEl.className = 'chat-avatar rounded-circle';
+        const avatarEl = document.createElement('div')
+        avatarEl.className = 'chat-avatar rounded-circle'
         
         if (avatar) {
-            avatarEl.style.backgroundImage = `url(${avatar})`;
+            avatarEl.style.backgroundImage = `url(${avatar})`
         } else {
             switch (type) {
                 case 'to':
-                    avatarEl.innerHTML = '<i class="bi bi-stars"></i>';
-                    break;
+                    avatarEl.innerHTML = '<i class="bi bi-stars"></i>'
+                    break
                 default:
-                    avatarEl.innerHTML = '<i class="bi bi-person"></i>';
+                    avatarEl.innerHTML = '<i class="bi bi-person"></i>'
             }
         }
         
         if (type !== 'service') {
-            messageEl.appendChild(avatarEl);
-            messageEl.appendChild(contentEl);
+            messageEl.appendChild(avatarEl)
+            messageEl.appendChild(contentEl)
         } else {
-            messageEl.appendChild(contentEl);
+            messageEl.appendChild(contentEl)
         }
         
-        this.chatContainer.appendChild(messageEl);
-        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        this.chatContainer.appendChild(messageEl)
+        this.chatContainer.scrollTop = this.chatContainer.scrollHeight
     }
 
-    changePicture(pictureUrl: string) {
+    _debugUpdateVolume (volume: number) {
+        const volumeValue = document.getElementById('volumeValue')
+        const volumeBar = document.getElementById('volumeBar')
+        
+        if (volumeValue && volumeBar) {
+            volumeValue.textContent = volume.toString()
+            
+            const percentage = Math.min(volume, 100)
+            volumeBar.style.width = `${percentage}%`
+            
+            volumeBar.className = 'progress-bar bg-primary'
+        }
+    }
+
+    _debugSetThreshold (threshold: number) {
+        const thresholdIndicator = document.getElementById('thresholdIndicator')
+        const thresholdValue = document.getElementById('thresholdValue')
+        
+        if (thresholdIndicator) {
+            const position = Math.min(threshold, 100)
+            thresholdIndicator.style.left = `${position}%`
+        }
+        
+        if (thresholdValue) {
+            thresholdValue.textContent = threshold.toString()
+        }
+    }
+
+    _debugUpdateState (state: string) {
+        const stateIndicator = document.getElementById('stateIndicator')
+        
+        if (stateIndicator) {
+            stateIndicator.textContent = state
+            
+            switch (state) {
+                case 'standby':
+                    stateIndicator.className = 'badge bg-secondary'
+                    break
+                case 'open':
+                    stateIndicator.className = 'badge bg-info'
+                    break
+                case 'recording':
+                    stateIndicator.className = 'badge bg-danger'
+                    break
+                case 'playing':
+                    stateIndicator.className = 'badge bg-success'
+                    break
+                default:
+                    stateIndicator.className = 'badge bg-secondary'
+            }
+        }
+    }
+
+    changePicture (pictureUrl: string) {
         if (!this.pictureContainer || !this.pictureContainer.src || !this.pictureContainer.parentElement) {
             throw new Error ('Chat or picture container failed to initialize')
         }
@@ -74,7 +127,7 @@ export class UIControl {
         this.pictureContainer.src = pictureUrl
     }
 
-    clearChat() {
+    clearChat () {
         if (!this.chatContainer) {
             throw new Error('Chat container failed to initialize')
         }
@@ -84,7 +137,7 @@ export class UIControl {
         }
     }
 
-    clearPicture() {
+    clearPicture () {
         if (!this.pictureContainer || !this.pictureContainer.parentElement) {
             throw new Error('Picture container failed to initialize')
         }

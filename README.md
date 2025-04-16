@@ -6,7 +6,7 @@ This is a simple web based frontend for Kaia – kitchen ai assistant by @okulov
 
 ## Requirements:
 
-1. You should have `NodeJS` installed. Best to stick to the 18+ versions 
+1. You should have `NodeJS` 20+ installed. 
 2. Install js dependencies:
 ```
 npm install
@@ -23,6 +23,12 @@ npm run dev
 
 3. Go to `localhost:5137`. Then grant rights for microphone and say the wakeword. Talk for a few seconds and then stay silent. Recording will be uploaded to Kaia
 
+## Linting
+
+The project uses ESLint. To run the linter:
+```
+npm run lint
+```
 
 ## Browser Support
 
