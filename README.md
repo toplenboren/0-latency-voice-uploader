@@ -1,6 +1,6 @@
 # Kaia frontend
 
-This is a simple web based frontend for Kaia – kitchen ai assistant by @okulovsky
+This is a simple web based frontend for [Kaia](https://github.com/okulovsky/kaia) – kitchen ai assistant
 
 ![alt text](docs/img.png)
 
