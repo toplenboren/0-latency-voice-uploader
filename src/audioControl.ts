@@ -138,7 +138,7 @@ export class AudioControl {
 
     _playStartSound () {
         if (!this.config.playSounds) { return }
-        this._playSound('/sounds/beep_lo.wav')
+        this._playSound('/sounds/beep_hi.wav')
     }
 
     _playErrorSound () {
@@ -148,7 +148,7 @@ export class AudioControl {
 
     _playStopSound () {
         if (!this.config.playSounds) { return }
-        this._playSound('/sounds/beep_hi.wav')
+        this._playSound('/sounds/beep_lo.wav')
     }
 
     _playSound (path: string, onPlaybackEnd: (() => void) | null = null) {

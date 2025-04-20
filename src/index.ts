@@ -17,6 +17,9 @@ interface IKaiaConfig {
     audioServerBaseUrl: string,
     
     silenceThreshold?: number,
+    silenceTimeDelta?: number,
+    smoothingTimeConstant?: number,
+    mediaRecorderChunkLength?: number,
 }
 
 class KaiaApp {
@@ -116,6 +119,9 @@ class KaiaApp {
                 wakeword: this.config.wakeword,
                 voskModelUrl: this.config.voskModelUrl,
                 silenceThreshold: silenceThreshold,
+                silenceTimeDelta: this.config.silenceTimeDelta || 1500,
+                smoothingTimeConstant: this.config.smoothingTimeConstant || 0.8,
+                mediaRecorderChunkLength: this.config.mediaRecorderChunkLength || 100,
 
                 playSounds: this.config.playSounds || true,
                 onWakeword: () => uiControl.addChatMessage('Wakeword detected', { type: 'service' }),

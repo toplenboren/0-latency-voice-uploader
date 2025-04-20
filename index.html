@@ -129,6 +129,21 @@
                             <input type="number" class="form-control" id="settingsSilenceThreshold" min="5" max="50" value="15">
                             <div class="form-text">Lower values = more sensitive microphone</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="settingsSilenceTimeDelta" class="form-label">Silence Time Delta (ms)</label>
+                            <input type="number" class="form-control" id="settingsSilenceTimeDelta" min="100" max="5000" value="1500">
+                            <div class="form-text">How long to wait after silence is detected before stopping recording</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="settingsSmoothingTimeConstant" class="form-label">Smoothing Time Constant</label>
+                            <input type="number" class="form-control" id="settingsSmoothingTimeConstant" min="0" max="1" step="0.1" value="0.8">
+                            <div class="form-text">Audio analyzer smoothing (0-1)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="settingsMediaRecorderChunkLength" class="form-label">Media Recorder Chunk Length (ms)</label>
+                            <input type="number" class="form-control" id="settingsMediaRecorderChunkLength" min="50" max="5000" value="200">
+                            <div class="form-text">How often to collect audio chunks</div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -160,6 +175,9 @@
                     if (config.kaiaServerBaseUrl) document.getElementById('settingsKaiaServerBaseUrl').value = config.kaiaServerBaseUrl;
                     if (config.audioServerBaseUrl) document.getElementById('settingsAudioServerBaseUrl').value = config.audioServerBaseUrl;
                     if (config.silenceThreshold) document.getElementById('settingsSilenceThreshold').value = config.silenceThreshold;
+                    if (config.silenceTimeDelta) document.getElementById('settingsSilenceTimeDelta').value = config.silenceTimeDelta;
+                    if (config.smoothingTimeConstant) document.getElementById('settingsSmoothingTimeConstant').value = config.smoothingTimeConstant;
+                    if (config.mediaRecorderChunkLength) document.getElementById('settingsMediaRecorderChunkLength').value = config.mediaRecorderChunkLength;
                 } catch (e) {
                     console.error('[kaia] Failed to parse config from URL:', e);
                 }
@@ -175,7 +193,10 @@
                 voskModelUrl: document.getElementById('settingsVoskModelUrl').value,
                 kaiaServerBaseUrl: document.getElementById('settingsKaiaServerBaseUrl').value,
                 audioServerBaseUrl: document.getElementById('settingsAudioServerBaseUrl').value,
-                silenceThreshold: parseInt(document.getElementById('settingsSilenceThreshold').value)
+                silenceThreshold: parseInt(document.getElementById('settingsSilenceThreshold').value),
+                silenceTimeDelta: parseInt(document.getElementById('settingsSilenceTimeDelta').value),
+                smoothingTimeConstant: parseFloat(document.getElementById('settingsSmoothingTimeConstant').value),
+                mediaRecorderChunkLength: parseInt(document.getElementById('settingsMediaRecorderChunkLength').value)
             };
 
             const configString = encodeURIComponent(JSON.stringify(settings));
