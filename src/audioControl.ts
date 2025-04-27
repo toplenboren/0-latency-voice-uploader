@@ -20,8 +20,8 @@ export enum STATES {
 
 export const ALLOWED_STATE_TRANSITIONS = {
     [STATES.STANDBY]: [STATES.OPEN, STATES.PLAYING],
-    [STATES.OPEN]: [STATES.RECORDING, STATES.PLAYING],
-    [STATES.RECORDING]: [STATES.PLAYING],
+    [STATES.OPEN]: [STATES.STANDBY, STATES.RECORDING, STATES.PLAYING],
+    [STATES.RECORDING]: [STATES.STANDBY, STATES.PLAYING],
     [STATES.PLAYING]: [STATES.RECORDING, STATES.STANDBY, STATES.OPEN]
 }
 
@@ -46,6 +46,9 @@ export interface IAudioControlConfig {
     // How much time to wait from silence start until ending recording
     silenceTimeDelta: number
 
+    // How much time to wait from silence start until cancelling recording after wakeword has been detected
+    wakewordTimeDelta: number
+
     // chunk length for mediarecorder
     recordingChunkLength: number
 
@@ -69,6 +72,7 @@ const DEFAULT_AUDIO_CONTROL_CONFIG: Partial<IAudioControlConfig> = {
     silenceThreshold: 15,
 
     silenceTimeDelta: 1500,
+    wakewordTimeDelta: 5000,
 
     mediaRecorderChunkLength: 100,
     sampleRate: 48000,
@@ -81,6 +85,8 @@ const DEFAULT_AUDIO_CONTROL_CONFIG: Partial<IAudioControlConfig> = {
 export class AudioControl {
     private config: IAudioControlConfig
     private state: STATES
+    private lastState: STATES
+    private currentStateStartedAt: number
 
     private audioStream?: MediaStream
     private audioContext?: AudioContext
@@ -94,8 +100,12 @@ export class AudioControl {
     private lastSendTime: number
     private audioWorkletNode?: AudioWorkletNode
     private volumeHistory: number[]
-    private silenceStartTime: number | null
     private historyIndex: number
+
+    private stopRecordingTimeoutId?: number
+    private startRecordingTimeoutId?: number
+
+    private volumeIsAboveThreshold = false
 
     constructor (userConfig: Partial<IAudioControlConfig>) {
         const config = { ...DEFAULT_AUDIO_CONTROL_CONFIG, ...userConfig } as IAudioControlConfig
@@ -111,7 +121,9 @@ export class AudioControl {
         this.config = config
 
         this.state = STATES.STANDBY
-        
+        this.lastState = STATES.STANDBY
+        this.currentStateStartedAt = Date.now()
+
         this.currentRecordingId = null
         this.audioChunks = []
         this.lastChunkIndex = 0
@@ -120,20 +132,44 @@ export class AudioControl {
 
         this.volumeHistory = new Array(this.config.volumeHistorySeconds * this.config.sampleInterval).fill(0)
         this.historyIndex = 0
-        this.silenceStartTime = null
     }
 
-    _changeState (newState: STATES): void {
-        console.debug(`[audioControl] changing state: from ${this.state} to ${newState}`)
-        this.state = newState
-        
+    async _changeState(newState: STATES): Promise<void> {
+
+        const currentState = this.getCurrentState()
+
         if (this.config.onStateChange) {
             this.config.onStateChange(newState)
         }
-    }
 
-    getState () {
-        return this.state
+        const allowedStateTransitionsForCurrentState = ALLOWED_STATE_TRANSITIONS[currentState]
+        if (!allowedStateTransitionsForCurrentState.includes(newState)) {
+            console.error(`[audioControl] Impossible to change state from ${this.state} to ${newState}`)
+            return
+        } else {
+            console.debug(`[audioControl] changing state: from ${this.state} to ${newState}`)
+        }
+
+        if (currentState === STATES.OPEN) {
+            if (newState === STATES.RECORDING) {
+                await this._startRecording()
+            }
+        }
+
+        if (currentState === STATES.RECORDING) {
+            // This means that Kaia has interrupted user
+            if (newState === STATES.PLAYING) {
+                await this._cancelRecording()
+            }
+
+            if (newState === STATES.STANDBY) {
+                await this._stopRecording()
+            }
+        }
+
+        this.lastState = currentState
+        this.state = newState
+        this.currentStateStartedAt = Date.now()
     }
 
     _playStartSound () {
@@ -177,18 +213,85 @@ export class AudioControl {
         }
     }
 
+    getCurrentState () {
+        return this.state
+    }
+
+    async playAudio (path: string) {
+        console.debug('[audioControl] playAudio signal detected')
+
+        await this._changeState(STATES.PLAYING)
+
+        this._playSound(path, () => {
+            if (this.config.onAudioPlayEnd) {
+                this._changeState(STATES.STANDBY)
+                this.config.onAudioPlayEnd(path)
+            }
+        })
+    }
+
     async _onWakeword () {
         console.info('[audioControl] Wakeword detected')
-        
-        if (this.getState() !== STATES.STANDBY) {
-            return
-        }
+
+        await this._changeState(STATES.OPEN)
+
+        this.startRecordingTimeoutId = setTimeout(() => {
+            if (this.getCurrentState() === STATES.OPEN) {
+                this._changeState(STATES.STANDBY)
+            }
+        }, this.config.wakewordTimeDelta)
+
+        this._playStartSound()
 
         if (this.config.onWakeword) {
             this.config.onWakeword()
         }
+    }
 
-        await this.startRecording()
+    getVolume() {
+        if (this.volumeHistory.length === 0) {
+            return 0;
+        }
+        
+        return Math.round(
+            this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length
+        );
+    }
+
+    getVolumeThreshold() {
+        return this.config.silenceThreshold;
+    }
+
+    getTimePassedSinceStateStart() {
+        return Date.now() - this.currentStateStartedAt
+    }
+
+    async _onVolumeAboveThreshold() {
+        const currentState = this.getCurrentState()
+
+        // User has started speaking again after pause
+        if (currentState === STATES.RECORDING) {
+            clearTimeout(this.stopRecordingTimeoutId )
+        }
+
+        // User started speaking after he said the wakeword
+        if (currentState === STATES.OPEN) {
+            clearTimeout(this.startRecordingTimeoutId )
+            await this._changeState(STATES.RECORDING)
+        }
+    }
+
+    async _onVolumeBelowThreshold() {
+        const currentState = this.getCurrentState()
+
+        if (currentState === STATES.RECORDING) {
+            this.stopRecordingTimeoutId = setTimeout(() => {
+                if (this.getCurrentState() === STATES.RECORDING) {
+                    console.debug('silenceTimeDeltaTimeout!')
+                    this._changeState(STATES.STANDBY)
+                }
+            }, this.config.silenceTimeDelta)
+        }
     }
 
     async _sendPendingChunks () {
@@ -244,7 +347,7 @@ export class AudioControl {
                 const blob = new Blob([e.data.audioData], { type: 'audio/wav' })
                 this.audioChunks.push(blob)
                 
-                if (!this.chunkIsBeingSent && this.getState() === STATES.RECORDING) {
+                if (!this.chunkIsBeingSent /** && this.getCurrentState() === STATES.RECORDING */) {
                     this.chunkIsBeingSent = true
                     try {
                         await this._onRecordingChunkReady()
@@ -276,6 +379,8 @@ export class AudioControl {
         analyser.fftSize = this.config.fftSize
         analyser.smoothingTimeConstant = this.config.smoothingTimeConstant
 
+        this.analyser = analyser
+
         const updateVolume = () => {
             const dataArray = new Uint8Array(analyser.frequencyBinCount)
             analyser.getByteFrequencyData(dataArray)
@@ -284,27 +389,23 @@ export class AudioControl {
             this.volumeHistory[this.historyIndex] = Math.round(average)
             this.historyIndex = (this.historyIndex + 1) % this.volumeHistory.length
             
-            const meanVolume = Math.round(
-                this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length
-            )
-            
-            if (this.getState() === STATES.RECORDING) {
-                if (meanVolume < this.config.silenceThreshold) {
-                    if (!this.silenceStartTime) {
-                        this.silenceStartTime = Date.now()
-                        console.debug(`[audioControl] Silence started: volume ${meanVolume} < threshold ${this.config.silenceThreshold}`)
-                    } else if (Date.now() - this.silenceStartTime >= this.config.silenceTimeDelta) {
-                        console.debug(`[audioControl] Stopping: silence lasted ${Date.now() - this.silenceStartTime}ms`)
-                        this.stopRecording()
-                        this.silenceStartTime = null
-                    }
-                } else {
-                    this.silenceStartTime = null
+            const currentVolume = this.getVolume()
+            const threshold = this.getVolumeThreshold()
+
+            if (currentVolume >= threshold) {
+                if (!this.volumeIsAboveThreshold) {
+                    this.volumeIsAboveThreshold = true
+                    this._onVolumeAboveThreshold()
+                }
+            } else {
+                if (this.volumeIsAboveThreshold) {
+                    this.volumeIsAboveThreshold = false
+                    this._onVolumeBelowThreshold()
                 }
             }
 
             if (this.config.onVolumeChange) {
-                this.config.onVolumeChange(meanVolume)
+                this.config.onVolumeChange(currentVolume)
             }
 
             requestAnimationFrame(updateVolume)
@@ -365,25 +466,7 @@ export class AudioControl {
         }
     }
 
-    async playAudio (path: string) {
-        console.debug('[audioControl] playAudio signal detected')
-        if (this.getState() === STATES.PLAYING) {
-            console.warn(`[audioControl] tried to play a sound ${path} outside of PLAYING state`)
-            return
-        }
-
-        this._changeState(STATES.PLAYING)
-
-        this._playSound(path, () => { 
-            this._changeState(STATES.STANDBY)
-            
-            if (this.config.onAudioPlayEnd) {
-                this.config.onAudioPlayEnd(path)
-            }
-        })
-    }
-
-    async cancelRecording () {
+    async _cancelRecording () {
         console.debug('[audioControl] Cancelling recording...')
 
         this.audioChunks = []
@@ -391,45 +474,48 @@ export class AudioControl {
         this.lastSendTime = 0
     }
 
-    async stopRecording () {
+    async _stopRecording () {
         if (!this.audioWorkletNode) {
             throw new Error('Audio worklet node is not properly initialized')
         }
 
-        if (this.getState() === STATES.RECORDING) {
-            console.debug('[audioControl] Ending recording...')
-            
-            try {
-                this.audioWorkletNode.port.postMessage({ command: 'stop' })
-                this._changeState(STATES.STANDBY)
-                
-                await this._sendPendingChunks()
-                
-                if (this.config.onStopRecording && this.currentRecordingId) {
-                    await this.config.onStopRecording(this.currentRecordingId)
-                }
-                
-                console.debug('[audioControl] Recording stopped successfully')
-                this._playStopSound()
-            } catch (error) {
-                console.error('[audioControl] Error stopping recording:', error)
-                this._playErrorSound()
+        if (this.getCurrentState() !== STATES.RECORDING) {
+            return
+        }
+
+        console.debug('[audioControl] Ending recording...')
+
+        try {
+            this.audioWorkletNode.port.postMessage({ command: 'stop' })
+
+            await this._sendPendingChunks()
+
+            if (this.config.onStopRecording && this.currentRecordingId) {
+                await this.config.onStopRecording(this.currentRecordingId)
             }
+
+            console.debug('[audioControl] Recording stopped successfully')
+            this._playStopSound()
+        } catch (error) {
+            console.error('[audioControl] Error stopping recording:', error)
+            this._playErrorSound()
         }
     }
 
-    async startRecording () {
+    async _startRecording () {
+        if (this.getCurrentState() !== STATES.OPEN) {
+            return
+        }
+
         if (!this.audioWorkletNode) {
             throw new Error('Audio worklet node is not properly initialized')
         }
 
         console.debug('[audioControl] Starting recording...')
-        
-        this._changeState(STATES.RECORDING)
+
         this.audioChunks = []
         this.currentRecordingId = Date.now().toString()
         this.audioWorkletNode.port.postMessage({ command: 'start' })
-        this._playStartSound()
 
         if (this.config.onStartRecording && this.currentRecordingId) {
             await this.config.onStartRecording(this.currentRecordingId)
