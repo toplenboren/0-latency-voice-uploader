@@ -18,6 +18,7 @@ interface IKaiaConfig {
     
     silenceThreshold?: number,
     silenceTimeDelta?: number,
+    wakewordTimeDelta?: number,
     smoothingTimeConstant?: number,
     mediaRecorderChunkLength?: number,
 }
@@ -120,6 +121,7 @@ class KaiaApp {
                 voskModelUrl: this.config.voskModelUrl,
                 silenceThreshold: silenceThreshold,
                 silenceTimeDelta: this.config.silenceTimeDelta || 1500,
+                wakewordTimeDelta: this.config.wakewordTimeDelta || 5000,
                 smoothingTimeConstant: this.config.smoothingTimeConstant || 0.8,
                 mediaRecorderChunkLength: this.config.mediaRecorderChunkLength || 100,
 
@@ -224,6 +226,7 @@ const kaia = new KaiaApp({
     audioServerBaseUrl: 'http://localhost:13000',
     
     silenceThreshold: 15,
+    wakewordTimeDelta: 5000,
 
     ...userConfig
 })

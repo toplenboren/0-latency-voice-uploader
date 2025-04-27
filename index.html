@@ -135,6 +135,11 @@
                             <div class="form-text">How long to wait after silence is detected before stopping recording</div>
                         </div>
                         <div class="mb-3">
+                            <label for="settingsWakewordTimeDelta" class="form-label">Wakeword Time Delta (ms)</label>
+                            <input type="number" class="form-control" id="settingsWakewordTimeDelta" min="1000" max="10000" value="5000">
+                            <div class="form-text">How long to wait after wakeword detection before canceling if no speech detected</div>
+                        </div>
+                        <div class="mb-3">
                             <label for="settingsSmoothingTimeConstant" class="form-label">Smoothing Time Constant</label>
                             <input type="number" class="form-control" id="settingsSmoothingTimeConstant" min="0" max="1" step="0.1" value="0.8">
                             <div class="form-text">Audio analyzer smoothing (0-1)</div>
@@ -176,6 +181,7 @@
                     if (config.audioServerBaseUrl) document.getElementById('settingsAudioServerBaseUrl').value = config.audioServerBaseUrl;
                     if (config.silenceThreshold) document.getElementById('settingsSilenceThreshold').value = config.silenceThreshold;
                     if (config.silenceTimeDelta) document.getElementById('settingsSilenceTimeDelta').value = config.silenceTimeDelta;
+                    if (config.wakewordTimeDelta) document.getElementById('settingsWakewordTimeDelta').value = config.wakewordTimeDelta;
                     if (config.smoothingTimeConstant) document.getElementById('settingsSmoothingTimeConstant').value = config.smoothingTimeConstant;
                     if (config.mediaRecorderChunkLength) document.getElementById('settingsMediaRecorderChunkLength').value = config.mediaRecorderChunkLength;
                 } catch (e) {
@@ -195,6 +201,7 @@
                 audioServerBaseUrl: document.getElementById('settingsAudioServerBaseUrl').value,
                 silenceThreshold: parseInt(document.getElementById('settingsSilenceThreshold').value),
                 silenceTimeDelta: parseInt(document.getElementById('settingsSilenceTimeDelta').value),
+                wakewordTimeDelta: parseInt(document.getElementById('settingsWakewordTimeDelta').value),
                 smoothingTimeConstant: parseFloat(document.getElementById('settingsSmoothingTimeConstant').value),
                 mediaRecorderChunkLength: parseInt(document.getElementById('settingsMediaRecorderChunkLength').value)
             };
