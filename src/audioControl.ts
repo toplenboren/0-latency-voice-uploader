@@ -85,13 +85,10 @@ const DEFAULT_AUDIO_CONTROL_CONFIG: Partial<IAudioControlConfig> = {
 export class AudioControl {
     private config: IAudioControlConfig
     private state: STATES
-    private lastState: STATES
-    private currentStateStartedAt: number
 
     private audioStream?: MediaStream
     private audioContext?: AudioContext
     private analyser?: AnalyserNode
-    private microphone?: MediaStreamAudioSourceNode
 
     private chunkIsBeingSent: boolean
     private currentRecordingId: string | null
@@ -104,7 +101,6 @@ export class AudioControl {
 
     private stopRecordingTimeoutId?: number
     private startRecordingTimeoutId?: number
-
     private volumeIsAboveThreshold = false
 
     constructor (userConfig: Partial<IAudioControlConfig>) {
@@ -121,8 +117,6 @@ export class AudioControl {
         this.config = config
 
         this.state = STATES.STANDBY
-        this.lastState = STATES.STANDBY
-        this.currentStateStartedAt = Date.now()
 
         this.currentRecordingId = null
         this.audioChunks = []
@@ -167,9 +161,7 @@ export class AudioControl {
             }
         }
 
-        this.lastState = currentState
         this.state = newState
-        this.currentStateStartedAt = Date.now()
     }
 
     _playStartSound () {
@@ -213,23 +205,6 @@ export class AudioControl {
         }
     }
 
-    getCurrentState () {
-        return this.state
-    }
-
-    async playAudio (path: string) {
-        console.debug('[audioControl] playAudio signal detected')
-
-        await this._changeState(STATES.PLAYING)
-
-        this._playSound(path, () => {
-            if (this.config.onAudioPlayEnd) {
-                this._changeState(STATES.STANDBY)
-                this.config.onAudioPlayEnd(path)
-            }
-        })
-    }
-
     async _onWakeword () {
         console.info('[audioControl] Wakeword detected')
 
@@ -248,6 +223,23 @@ export class AudioControl {
         }
     }
 
+    getCurrentState () {
+        return this.state
+    }
+
+    async playAudio (path: string) {
+        console.debug('[audioControl] playAudio signal detected')
+
+        await this._changeState(STATES.PLAYING)
+
+        this._playSound(path, () => {
+            if (this.config.onAudioPlayEnd) {
+                this._changeState(STATES.STANDBY)
+                this.config.onAudioPlayEnd(path)
+            }
+        })
+    }
+
     getVolume () {
         if (this.volumeHistory.length === 0) {
             return 0
@@ -260,10 +252,6 @@ export class AudioControl {
 
     getVolumeThreshold () {
         return this.config.silenceThreshold
-    }
-
-    getTimePassedSinceStateStart () {
-        return Date.now() - this.currentStateStartedAt
     }
 
     async _onVolumeAboveThreshold () {
@@ -287,7 +275,6 @@ export class AudioControl {
         if (currentState === STATES.RECORDING) {
             this.stopRecordingTimeoutId = setTimeout(() => {
                 if (this.getCurrentState() === STATES.RECORDING) {
-                    console.debug('silenceTimeDeltaTimeout!')
                     this._changeState(STATES.STANDBY)
                 }
             }, this.config.silenceTimeDelta)
