@@ -134,7 +134,7 @@ export class AudioControl {
         this.historyIndex = 0
     }
 
-    async _changeState(newState: STATES): Promise<void> {
+    async _changeState (newState: STATES): Promise<void> {
 
         const currentState = this.getCurrentState()
 
@@ -248,25 +248,25 @@ export class AudioControl {
         }
     }
 
-    getVolume() {
+    getVolume () {
         if (this.volumeHistory.length === 0) {
-            return 0;
+            return 0
         }
         
         return Math.round(
             this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length
-        );
+        )
     }
 
-    getVolumeThreshold() {
-        return this.config.silenceThreshold;
+    getVolumeThreshold () {
+        return this.config.silenceThreshold
     }
 
-    getTimePassedSinceStateStart() {
+    getTimePassedSinceStateStart () {
         return Date.now() - this.currentStateStartedAt
     }
 
-    async _onVolumeAboveThreshold() {
+    async _onVolumeAboveThreshold () {
         const currentState = this.getCurrentState()
 
         // User has started speaking again after pause
@@ -281,7 +281,7 @@ export class AudioControl {
         }
     }
 
-    async _onVolumeBelowThreshold() {
+    async _onVolumeBelowThreshold () {
         const currentState = this.getCurrentState()
 
         if (currentState === STATES.RECORDING) {
