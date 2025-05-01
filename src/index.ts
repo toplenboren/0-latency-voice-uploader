@@ -74,9 +74,20 @@ class KaiaApp {
             if (update['type'] == 'reaction_image') {
                 const imageName = update?.payload?.filename
                 const imagePath = `${this.api.config.kaiaServerBaseUrl}/file/${imageName}`
-
                 this.uiControl.changePicture(imagePath)
             }
+
+            if (update['type'] == 'injection_audio') {
+                const injection_filename = update?.payload?.filename
+                const injection_url = `${this.api.config.kaiaServerBaseUrl}/file/${injection_filename}`
+                if (injection_url && this.audioControl) {
+                    console.debug(`[kaia] Injection audio requested: ${injection_url}`)
+                    await this.audioControl.inject_audio(injection_url)
+                } else {
+                    console.warn('[kaia] Injection audio update received without a valid payload')
+                }
+            }
+
 
             if (update['type'] == 'reaction_audio') {
                 const audioName = update?.payload?.filename
@@ -126,7 +137,12 @@ class KaiaApp {
                 mediaRecorderChunkLength: this.config.mediaRecorderChunkLength || 100,
 
                 playSounds: this.config.playSounds || true,
-                onWakeword: () => uiControl.addChatMessage('Wakeword detected', { type: 'service' }),
+
+                onWakeword: async (word: string) => {
+                    uiControl.addChatMessage('Wakeword detected', { type: 'service' })
+                    const sendWakewordCommandResponse = await api.sendCommandWakeWord(word)
+                    console.debug('[kaia] Sent wakeword command', sendWakewordCommandResponse)
+                },
 
                 onStartRecording: () => {
                     uiControl.addChatMessage(`Recording just started`, { type: 'service' })

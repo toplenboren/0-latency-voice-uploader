@@ -29,7 +29,7 @@ export interface IAudioControlConfig {
     wakeword: string
     voskModelUrl: string
 
-    onWakeword: () => void
+    onWakeword: (recognizedWord: string) => void
     onStopRecording: (recordingId: string) => void
     onStartRecording: (recordingId: string) => void
     onRecordingChunk: (index: number, audioChunks: Blob[]) => void
@@ -205,7 +205,7 @@ export class AudioControl {
         }
     }
 
-    async _onWakeword () {
+    async _onWakeword (word: string) {
         console.info('[audioControl] Wakeword detected')
 
         await this._changeState(STATES.OPEN)
@@ -219,7 +219,7 @@ export class AudioControl {
         this._playStartSound()
 
         if (this.config.onWakeword) {
-            this.config.onWakeword()
+            this.config.onWakeword(word)
         }
     }
 
@@ -322,18 +322,25 @@ export class AudioControl {
 
         // @ts-expect-error - In Apple garden you may not have access to AudioContext, but will have access to webkitAudioContext
         const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-        
-        const source = audioContext.createMediaStreamSource(audioStream)
+
+        this.audioContext = audioContext
+        this.audioStream = audioStream
+        await this._setupAudioStreaming()
+    }
+
+
+    async _setupAudioStreaming() {
+        const source = this.audioContext.createMediaStreamSource(this.audioStream)
         const processorUrl = new URL('/wav-recorder-processor.js', window.location.href).href
-        
-        await audioContext.audioWorklet.addModule(processorUrl)
-        const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-recorder-processor')
-        
+
+        await this.audioContext.audioWorklet.addModule(processorUrl)
+        const audioWorkletNode = new AudioWorkletNode(this.audioContext, 'audio-recorder-processor')
+
         audioWorkletNode.port.onmessage = async (e) => {
             if (e.data.type === 'chunk') {
                 const blob = new Blob([e.data.audioData], { type: 'audio/wav' })
                 this.audioChunks.push(blob)
-                
+
                 if (!this.chunkIsBeingSent /** && this.getCurrentState() === STATES.RECORDING */) {
                     this.chunkIsBeingSent = true
                     try {
@@ -347,10 +354,9 @@ export class AudioControl {
         }
 
         source.connect(audioWorkletNode)
-        audioWorkletNode.connect(audioContext.destination)
+        audioWorkletNode.connect(this.audioContext.destination)
 
-        this.audioContext = audioContext
-        this.audioStream = audioStream
+
         this.audioWorkletNode = audioWorkletNode
     }
 
@@ -449,7 +455,7 @@ export class AudioControl {
 
     _processRecognizedWord (word: string) {
         if (word === this.config.wakeword) {
-            this._onWakeword()
+            this._onWakeword(word)
         }
     }
 
@@ -507,5 +513,52 @@ export class AudioControl {
         if (this.config.onStartRecording && this.currentRecordingId) {
             await this.config.onStartRecording(this.currentRecordingId)
         }
+    }
+
+    async inject_audio(url: string) {
+        console.debug('[audioControl] Injecting file:', url)
+
+        let response: Response
+        try {
+            response = await fetch(url)
+        } catch (error) {
+            console.error('[audioControl] Failed to fetch audio file:', error)
+            return
+        }
+
+        if (!response.ok) {
+            console.error(`[audioControl] HTTP error while fetching file: ${response.status} ${response.statusText}`)
+            return
+        }
+
+        console.debug('[audioControl] Audio file fetched successfully')
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+        this.audioContext = audioContext
+
+        // Create a destination node to capture audio into a MediaStream
+        const destination = audioContext.createMediaStreamDestination()
+
+        // Fetch and decode the audio buffer
+        const arrayBuffer = await response.arrayBuffer()
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+
+        // Create a buffer source and connect to the MediaStreamDestination
+        const bufferSource = audioContext.createBufferSource()
+        bufferSource.buffer = audioBuffer
+        bufferSource.loop = false
+        bufferSource.connect(destination)
+
+        // This becomes the new "audioStream" for the rest of the system
+        this.audioStream = destination.stream
+
+        // Setup audio recording (volume, chunking, etc)
+        await this._setupAudioStreaming()
+        await this._setupVolumeControl()
+        await this._setupVoiceRecognition()
+
+        bufferSource.start(0)
+
+        console.debug('[audioControl] Audio injection started')
     }
 }
