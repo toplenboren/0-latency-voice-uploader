@@ -99,8 +99,8 @@ export class AudioControl {
     private volumeHistory: number[]
     private historyIndex: number
 
-    private stopRecordingTimeoutId?: number
-    private startRecordingTimeoutId?: number
+    private stopRecordingTimeoutId?: NodeJS.Timeout
+    private startRecordingTimeoutId?: NodeJS.Timeout
     private volumeIsAboveThreshold = false
 
     constructor (userConfig: Partial<IAudioControlConfig>) {

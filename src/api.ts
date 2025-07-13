@@ -25,7 +25,7 @@ export class Api {
         formData.append('index', index.toString())
         formData.append('blob', new Blob(audioChunks, { type: 'audio/wav' }))
     
-        const url = this.config.audioServerBaseUrl + '/audio'
+        const url = `/audio`;
 
         return this._sendRequest(url, {
             method: 'POST',
@@ -34,10 +34,8 @@ export class Api {
     }
 
     async sendConfirmationAudio (path: string) {
-        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/confirmation_audio`
-
+        const url = `/kaia/command/${this.config.sessionId}/confirmation_audio`;
         const filename = path.split('/').pop()
-
         return this._sendRequest(url, {
             method: 'POST',
             body: JSON.stringify(filename)
@@ -45,8 +43,7 @@ export class Api {
     }
 
     async sendCommandAudio (filename: string) {
-        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/command_audio`
-
+        const url = `/kaia/command/${this.config.sessionId}/command_audio`;
         return this._sendRequest(url, {
             method: 'POST',
             body: JSON.stringify(filename)
@@ -57,7 +54,7 @@ export class Api {
         const formData = new FormData()
         formData.append('client_id', this.config.sessionId)
 
-        const url = this.config.audioServerBaseUrl + '/audio_end'
+        const url = `/audio_end`;
 
         const response = await this._sendRequest(url, {
             method: 'POST',
@@ -68,8 +65,7 @@ export class Api {
     }
 
     async commandInitialize () {
-        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/command_initialize`
-
+        const url = `/kaia/command/${this.config.sessionId}/command_initialize`;
         return this._sendRequest(url, {
             method: 'POST',
             body: JSON.stringify('')
@@ -81,8 +77,7 @@ export class Api {
             throw new Error('[api] lastMessageId can not be undefined')
         }
 
-        const url = `${this.config.kaiaServerBaseUrl}/updates/${this.config.sessionId}/${lastMessageIndex.toString()}`
-
+        const url = `/kaia/updates/${this.config.sessionId}/${lastMessageIndex.toString()}`;
         return this._sendRequest(url, {
             method: 'GET'
         })

@@ -4,11 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kaia Voice Assistant</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+
 <body class="vh-100 overflow-hidden">
     <div class="container-fluid h-100 p-2">
         <div class="row h-100 g-3">
@@ -149,6 +153,11 @@
                             <input type="number" class="form-control" id="settingsMediaRecorderChunkLength" min="50" max="5000" value="200">
                             <div class="form-text">How often to collect audio chunks</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="settingsProxyUrl" class="form-label">Proxy URL (for static)</label>
+                            <input type="text" class="form-control" id="settingsProxyUrl" placeholder="http://localhost:5173">
+                            <div class="form-text">If set, static files from kaia server (images, audio) will be proxied through this URL.</div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -184,6 +193,7 @@
                     if (config.wakewordTimeDelta) document.getElementById('settingsWakewordTimeDelta').value = config.wakewordTimeDelta;
                     if (config.smoothingTimeConstant) document.getElementById('settingsSmoothingTimeConstant').value = config.smoothingTimeConstant;
                     if (config.mediaRecorderChunkLength) document.getElementById('settingsMediaRecorderChunkLength').value = config.mediaRecorderChunkLength;
+                    if (config.proxyUrl) document.getElementById('settingsProxyUrl').value = config.proxyUrl;
                 } catch (e) {
                     console.error('[kaia] Failed to parse config from URL:', e);
                 }
@@ -203,7 +213,8 @@
                 silenceTimeDelta: parseInt(document.getElementById('settingsSilenceTimeDelta').value),
                 wakewordTimeDelta: parseInt(document.getElementById('settingsWakewordTimeDelta').value),
                 smoothingTimeConstant: parseFloat(document.getElementById('settingsSmoothingTimeConstant').value),
-                mediaRecorderChunkLength: parseInt(document.getElementById('settingsMediaRecorderChunkLength').value)
+                mediaRecorderChunkLength: parseInt(document.getElementById('settingsMediaRecorderChunkLength').value),
+                proxyUrl: document.getElementById('settingsProxyUrl').value
             };
 
             const configString = encodeURIComponent(JSON.stringify(settings));
