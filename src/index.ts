@@ -1,6 +1,7 @@
 import { UIControl, IUIControlConfig } from './uiControl'
 import { Api, IApiConfig } from './api.js'
 import { AudioControl, IAudioControlConfig } from './audioControl.js'
+import { AudioControlInjector} from './audioControlInjector.js'
 
 interface IKaiaConfig {
     playSounds: boolean,
@@ -33,6 +34,7 @@ class KaiaApp {
     uiControl?: UIControl
     api?: Api
     audioControl?: AudioControl
+    audioControlInjector: AudioControlInjector
 
     constructor (config: IKaiaConfig) {
         this.sessionId = config?.sessionId || Math.floor(Math.random() * 1000000).toString()
@@ -83,7 +85,7 @@ class KaiaApp {
                 const injection_url = `${this.api.config.kaiaServerBaseUrl}/file/${injection_filename}`
                 if (injection_url && this.audioControl) {
                     console.debug(`[kaia] Injection audio requested: ${injection_url}`)
-                    await this.audioControl.inject_audio(injection_url)
+                    await this.audioControlInjector.inject_audio(injection_url)
                 } else {
                     console.warn('[kaia] Injection audio update received without a valid payload')
                 }
@@ -184,9 +186,12 @@ class KaiaApp {
             const audioControl = new AudioControl(audioControlConfig)
             await audioControl.initialize()
 
+            const audioControlInjector = new AudioControlInjector(audioControl)
+
             this.api = api
             this.audioControl = audioControl
             this.uiControl = uiControl
+            this.audioControlInjector = audioControlInjector
 
             uiControl._debugSetThreshold(silenceThreshold)
 

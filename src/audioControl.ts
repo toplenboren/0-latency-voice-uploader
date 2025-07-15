@@ -103,6 +103,8 @@ export class AudioControl {
     private startRecordingTimeoutId?: NodeJS.Timeout
     private volumeIsAboveThreshold = false
 
+    private recognizerProcessor?: AudioWorkletNode
+
     constructor (userConfig: Partial<IAudioControlConfig>) {
         const config = { ...DEFAULT_AUDIO_CONTROL_CONFIG, ...userConfig } as IAudioControlConfig
 
@@ -113,7 +115,7 @@ export class AudioControl {
         if (config.recordingChunkLength <= config.mediaRecorderChunkLength) {
             throw new Error(`RecordingChunkLength should be bigger then ${config.mediaRecorderChunkLength}`)
         }
-        
+
         this.config = config
 
         this.state = STATES.STANDBY
@@ -194,7 +196,7 @@ export class AudioControl {
         try {
             console.debug('[audioControl] Initializing audio control Microphone...')
             await this._setupMicrophone()
-            
+
             console.debug('[audioControl] Initializing volume control...')
             await this._setupVolumeControl()
 
@@ -244,7 +246,7 @@ export class AudioControl {
         if (this.volumeHistory.length === 0) {
             return 0
         }
-        
+
         return Math.round(
             this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length
         )
@@ -289,11 +291,11 @@ export class AudioControl {
         if (this.audioChunks.length === 0) {
             return
         }
-        
+
         const index = this.lastChunkIndex++
         const audioChunks = this.audioChunks
 
-        try { 
+        try {
             await this.config.onRecordingChunk(index, audioChunks)
 
             this.audioChunks = []
@@ -368,7 +370,7 @@ export class AudioControl {
         const analyser = this.audioContext.createAnalyser()
         const microphone = this.audioContext.createMediaStreamSource(this.audioStream)
         microphone.connect(analyser)
-        
+
         analyser.fftSize = this.config.fftSize
         analyser.smoothingTimeConstant = this.config.smoothingTimeConstant
 
@@ -377,11 +379,11 @@ export class AudioControl {
         const updateVolume = () => {
             const dataArray = new Uint8Array(analyser.frequencyBinCount)
             analyser.getByteFrequencyData(dataArray)
-            
+
             const average = dataArray.reduce((a, b) => a + b) / dataArray.length
             this.volumeHistory[this.historyIndex] = Math.round(average)
             this.historyIndex = (this.historyIndex + 1) % this.volumeHistory.length
-            
+
             const currentVolume = this.getVolume()
             const threshold = this.getVolumeThreshold()
 
@@ -422,7 +424,7 @@ export class AudioControl {
             recognizer.setWords(true)
 
             recognizer.on("result", (message: RecognizerMessage) => {
-                
+
                 // @ts-expect-error - RecognizerMessage structure varies by message type
                 const word = message?.result?.text?.toLowerCase().trim() || ''
 
@@ -433,10 +435,11 @@ export class AudioControl {
 
             const processorUrl = new URL('recognizer-processor.js', window.location.href).href
             await this.audioContext.audioWorklet.addModule(processorUrl)
-            
+
             const recognizerProcessor = new AudioWorkletNode(this.audioContext, 'recognizer-processor', {
                 channelCount: 1
             })
+            this.recognizerProcessor = recognizerProcessor  // <- сохранили
 
             recognizerProcessor.port.postMessage(
                 { action: 'init', recognizerId: recognizer.id },
@@ -446,7 +449,6 @@ export class AudioControl {
             const source = this.audioContext.createMediaStreamSource(this.audioStream)
             source.connect(recognizerProcessor)
             recognizerProcessor.connect(this.audioContext.destination)
-
         } catch (error) {
             console.error('[audioControl] Voice recognition initialization error:', error)
             throw error
@@ -513,52 +515,5 @@ export class AudioControl {
         if (this.config.onStartRecording && this.currentRecordingId) {
             await this.config.onStartRecording(this.currentRecordingId)
         }
-    }
-
-    async inject_audio(url: string) {
-        console.debug('[audioControl] Injecting file:', url)
-
-        let response: Response
-        try {
-            response = await fetch(url)
-        } catch (error) {
-            console.error('[audioControl] Failed to fetch audio file:', error)
-            return
-        }
-
-        if (!response.ok) {
-            console.error(`[audioControl] HTTP error while fetching file: ${response.status} ${response.statusText}`)
-            return
-        }
-
-        console.debug('[audioControl] Audio file fetched successfully')
-
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-        this.audioContext = audioContext
-
-        // Create a destination node to capture audio into a MediaStream
-        const destination = audioContext.createMediaStreamDestination()
-
-        // Fetch and decode the audio buffer
-        const arrayBuffer = await response.arrayBuffer()
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-
-        // Create a buffer source and connect to the MediaStreamDestination
-        const bufferSource = audioContext.createBufferSource()
-        bufferSource.buffer = audioBuffer
-        bufferSource.loop = false
-        bufferSource.connect(destination)
-
-        // This becomes the new "audioStream" for the rest of the system
-        this.audioStream = destination.stream
-
-        // Setup audio recording (volume, chunking, etc)
-        await this._setupAudioStreaming()
-        await this._setupVolumeControl()
-        await this._setupVoiceRecognition()
-
-        bufferSource.start(0)
-
-        console.debug('[audioControl] Audio injection started')
     }
 }
