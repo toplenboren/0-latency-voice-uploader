@@ -37,11 +37,11 @@ function qrCodePlugin() {
         const address = server.httpServer.address()
         const host = getNetworkAddress()
         const port = typeof address === 'object' && address ? address.port : (process.env.PORT || DEFAULT_PORT)
-        const url = `http://${host}:${port}`
+        const url = `https://${host}:${port}`
 
         const config = {
           kaiaServerBaseUrl: process.env.KAIA_SERVER_URL,
-          sessionId: process.env.KAIA_CLIENT_ID,
+          sessionId: process.env.SESSION_ID,
           proxyUrl: url
         }
 
