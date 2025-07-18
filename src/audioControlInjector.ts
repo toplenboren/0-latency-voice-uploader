@@ -59,7 +59,7 @@ export class AudioControlInjector {
    * Fetches an audio file, decodes it, plays it through AudioControl's worklet, analyzer, and recognizer,
    * then switches to persistent silence.
    */
-  inject_audio = async (url: string): Promise<void> => {
+  injectAudio = async (url: string): Promise<void> => {
     const ac: any = this.audioControl
     const ctx: AudioContext = ac.audioContext
     const workletNode: AudioWorkletNode = ac.audioWorkletNode

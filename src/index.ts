@@ -82,10 +82,10 @@ class KaiaApp {
 
             if (update['type'] == 'injection_audio') {
                 const injection_filename = update?.payload?.filename
-                const injection_url = `${this.api.config.kaiaServerBaseUrl}/file/${injection_filename}`
+                const injection_url = `/file/${injection_filename}`
                 if (injection_url && this.audioControl) {
                     console.debug(`[kaia] Injection audio requested: ${injection_url}`)
-                    await this.audioControlInjector.inject_audio(injection_url)
+                    await this.audioControlInjector.injectAudio(injection_url)
                 } else {
                     console.warn('[kaia] Injection audio update received without a valid payload')
                 }
