@@ -1,9 +1,10 @@
 # Kaia frontend
 
-This is a simple web based frontend for [Kaia](https://github.com/okulovsky/kaia) – kitchen ai assistant
+This is a very simple web based frontend client for [Kaia](https://github.com/okulovsky/kaia) – kitchen ai assistant. Think of it as cooler open source Alexa :-) 
+
+Kaia can answer your queries, set timers, and help you live a more healthy and wholesome life
 
 ![alt text](docs/img.png)
-
 
 ## Running the app Locally
 
@@ -14,27 +15,26 @@ This is a simple web based frontend for [Kaia](https://github.com/okulovsky/kaia
 npm install
 ```
 
-3. You should have Kaia running
+3. You should have **Kaia server** and **Kaia audio control** running on your local network, check out [Kaia](https://github.com/okulovsky/kaia) for installation guides
 
-4. Start js frontend:
+4. [Generate](https://github.com/FiloSottile/mkcert) local development certificates for https
+
+5. Copy .env.example to .env and fill the file:
+
+```shell
+cp .env.example .env
+```
+
+6. Start js frontend:
 ```
 npm run dev
 ```
 
-5. Go to `localhost:5137`. Then grant rights for microphone and say the wakeword. Talk for a few seconds and then stay silent. Recording will be uploaded to Kaia
-
-## Caveats when running on other devices (not localhost):
-
-1. Kaia frontend needs to be ran under https – this requirement stems from using Audio Worklets to record raw WAV
-
-2. You currently need to allow your browser to display `mixed content` or run Kaia under HTTPS
-
-Here is how to do it for Firefox – https://support.mozilla.org/en-US/questions/1198894
-
+7. Check out stdout and scan QR code / open the link. Grant microphone rights and say the wakeword. You are all set!
 
 # Development
 
-This project intentionally doesnt use React or any other frontend libraries
+This project intentionally does not use React or any other frontend libraries
 
 ![arch.png](docs/arch.png)
 

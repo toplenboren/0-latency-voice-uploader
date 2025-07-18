@@ -6,10 +6,11 @@ export interface IUIControlConfig {
     chatContainerId: string
     pictureContainerId: string
     placeholderImagePath?: string
+    proxyUrl?: string
 }
 
 export class UIControl {
-    config
+    config: IUIControlConfig
     placeholderImagePath: string
 
     chatContainer: HTMLElement
@@ -30,6 +31,18 @@ export class UIControl {
         this.pictureContainer = pictureContainer
     }
 
+    private proxiedImageUrl(url: string): string {
+        if (!this.config.proxyUrl) return url;
+        try {
+            const u = new URL(url, window.location.origin);
+            u.host = this.config.proxyUrl.replace(/^https?:\/\//, '');
+            u.protocol = this.config.proxyUrl.startsWith('https') ? 'https:' : 'http:';
+            return u.toString();
+        } catch {
+            return url;
+        }
+    }
+
     addChatMessage (message: string, options: { avatar?: string, type: string }) {
         const { type = 'from', avatar } = options
         
@@ -44,7 +57,7 @@ export class UIControl {
         avatarEl.className = 'chat-avatar rounded-circle'
         
         if (avatar) {
-            avatarEl.style.backgroundImage = `url(${avatar})`
+            avatarEl.style.backgroundImage = `url(${this.proxiedImageUrl(avatar)})`
         } else {
             switch (type) {
                 case 'to':
@@ -124,7 +137,7 @@ export class UIControl {
             throw new Error ('Chat or picture container failed to initialize')
         }
 
-        this.pictureContainer.src = pictureUrl
+        this.pictureContainer.src = this.proxiedImageUrl(pictureUrl)
     }
 
     clearChat () {
