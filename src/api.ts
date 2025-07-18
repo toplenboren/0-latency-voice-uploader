@@ -42,6 +42,15 @@ export class Api {
         })
     }
 
+    async sendCommandWakeWord(word: string) {
+        const url = `${this.config.kaiaServerBaseUrl}/command/${this.config.sessionId}/command_wakeword`
+
+        return this._sendRequest(url, {
+            method: 'POST',
+            body: JSON.stringify(word)
+        })
+    }
+
     async sendCommandAudio (filename: string) {
         const url = `/kaia/command/${this.config.sessionId}/command_audio`;
         return this._sendRequest(url, {
