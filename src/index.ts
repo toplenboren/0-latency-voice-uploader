@@ -77,7 +77,6 @@ class KaiaApp {
             if (update['type'] == 'reaction_image') {
                 const imageName = update?.payload?.filename
                 const imagePath = `${this.api.config.kaiaServerBaseUrl}/file/${imageName}`
-                const imagePath = `/file/${imageName}`
                 this.uiControl.changePicture(imagePath)
             }
 
