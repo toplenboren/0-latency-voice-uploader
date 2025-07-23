@@ -29,7 +29,7 @@ export interface IAudioControlConfig {
     wakeword: string
     voskModelUrl: string
 
-    onWakeword: () => void
+    onWakeword: (recognizedWord: string) => void
     onStopRecording: (recordingId: string) => void
     onStartRecording: (recordingId: string) => void
     onRecordingChunk: (index: number, audioChunks: Blob[]) => void
@@ -103,6 +103,8 @@ export class AudioControl {
     private startRecordingTimeoutId?: NodeJS.Timeout
     private volumeIsAboveThreshold = false
 
+    private recognizerProcessor?: AudioWorkletNode
+
     constructor (userConfig: Partial<IAudioControlConfig>) {
         const config = { ...DEFAULT_AUDIO_CONTROL_CONFIG, ...userConfig } as IAudioControlConfig
 
@@ -113,7 +115,7 @@ export class AudioControl {
         if (config.recordingChunkLength <= config.mediaRecorderChunkLength) {
             throw new Error(`RecordingChunkLength should be bigger then ${config.mediaRecorderChunkLength}`)
         }
-        
+
         this.config = config
 
         this.state = STATES.STANDBY
@@ -194,7 +196,7 @@ export class AudioControl {
         try {
             console.debug('[audioControl] Initializing audio control Microphone...')
             await this._setupMicrophone()
-            
+
             console.debug('[audioControl] Initializing volume control...')
             await this._setupVolumeControl()
 
@@ -205,7 +207,7 @@ export class AudioControl {
         }
     }
 
-    async _onWakeword () {
+    async _onWakeword (word: string) {
         console.info('[audioControl] Wakeword detected')
 
         await this._changeState(STATES.OPEN)
@@ -219,7 +221,7 @@ export class AudioControl {
         this._playStartSound()
 
         if (this.config.onWakeword) {
-            this.config.onWakeword()
+            this.config.onWakeword(word)
         }
     }
 
@@ -244,7 +246,7 @@ export class AudioControl {
         if (this.volumeHistory.length === 0) {
             return 0
         }
-        
+
         return Math.round(
             this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length
         )
@@ -289,11 +291,11 @@ export class AudioControl {
         if (this.audioChunks.length === 0) {
             return
         }
-        
+
         const index = this.lastChunkIndex++
         const audioChunks = this.audioChunks
 
-        try { 
+        try {
             await this.config.onRecordingChunk(index, audioChunks)
 
             this.audioChunks = []
@@ -322,18 +324,25 @@ export class AudioControl {
 
         // @ts-expect-error - In Apple garden you may not have access to AudioContext, but will have access to webkitAudioContext
         const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-        
-        const source = audioContext.createMediaStreamSource(audioStream)
+
+        this.audioContext = audioContext
+        this.audioStream = audioStream
+        await this._setupAudioStreaming()
+    }
+
+
+    async _setupAudioStreaming() {
+        const source = this.audioContext.createMediaStreamSource(this.audioStream)
         const processorUrl = new URL('/wav-recorder-processor.js', window.location.href).href
-        
-        await audioContext.audioWorklet.addModule(processorUrl)
-        const audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-recorder-processor')
-        
+
+        await this.audioContext.audioWorklet.addModule(processorUrl)
+        const audioWorkletNode = new AudioWorkletNode(this.audioContext, 'audio-recorder-processor')
+
         audioWorkletNode.port.onmessage = async (e) => {
             if (e.data.type === 'chunk') {
                 const blob = new Blob([e.data.audioData], { type: 'audio/wav' })
                 this.audioChunks.push(blob)
-                
+
                 if (!this.chunkIsBeingSent /** && this.getCurrentState() === STATES.RECORDING */) {
                     this.chunkIsBeingSent = true
                     try {
@@ -347,10 +356,9 @@ export class AudioControl {
         }
 
         source.connect(audioWorkletNode)
-        audioWorkletNode.connect(audioContext.destination)
+        audioWorkletNode.connect(this.audioContext.destination)
 
-        this.audioContext = audioContext
-        this.audioStream = audioStream
+
         this.audioWorkletNode = audioWorkletNode
     }
 
@@ -362,7 +370,7 @@ export class AudioControl {
         const analyser = this.audioContext.createAnalyser()
         const microphone = this.audioContext.createMediaStreamSource(this.audioStream)
         microphone.connect(analyser)
-        
+
         analyser.fftSize = this.config.fftSize
         analyser.smoothingTimeConstant = this.config.smoothingTimeConstant
 
@@ -371,11 +379,11 @@ export class AudioControl {
         const updateVolume = () => {
             const dataArray = new Uint8Array(analyser.frequencyBinCount)
             analyser.getByteFrequencyData(dataArray)
-            
+
             const average = dataArray.reduce((a, b) => a + b) / dataArray.length
             this.volumeHistory[this.historyIndex] = Math.round(average)
             this.historyIndex = (this.historyIndex + 1) % this.volumeHistory.length
-            
+
             const currentVolume = this.getVolume()
             const threshold = this.getVolumeThreshold()
 
@@ -416,7 +424,7 @@ export class AudioControl {
             recognizer.setWords(true)
 
             recognizer.on("result", (message: RecognizerMessage) => {
-                
+
                 // @ts-expect-error - RecognizerMessage structure varies by message type
                 const word = message?.result?.text?.toLowerCase().trim() || ''
 
@@ -427,10 +435,11 @@ export class AudioControl {
 
             const processorUrl = new URL('recognizer-processor.js', window.location.href).href
             await this.audioContext.audioWorklet.addModule(processorUrl)
-            
+
             const recognizerProcessor = new AudioWorkletNode(this.audioContext, 'recognizer-processor', {
                 channelCount: 1
             })
+            this.recognizerProcessor = recognizerProcessor  // <- сохранили
 
             recognizerProcessor.port.postMessage(
                 { action: 'init', recognizerId: recognizer.id },
@@ -440,7 +449,6 @@ export class AudioControl {
             const source = this.audioContext.createMediaStreamSource(this.audioStream)
             source.connect(recognizerProcessor)
             recognizerProcessor.connect(this.audioContext.destination)
-
         } catch (error) {
             console.error('[audioControl] Voice recognition initialization error:', error)
             throw error
@@ -449,7 +457,7 @@ export class AudioControl {
 
     _processRecognizedWord (word: string) {
         if (word === this.config.wakeword) {
-            this._onWakeword()
+            this._onWakeword(word)
         }
     }
 
