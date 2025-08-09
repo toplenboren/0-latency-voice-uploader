@@ -1,8 +1,8 @@
 # Kaia frontend
 
-This is a very simple web based frontend client for [Kaia](https://github.com/okulovsky/kaia) – kitchen ai assistant. Think of it as cooler open source Alexa :-) 
+This is a very simple web based frontend client for [Kaia](https://github.com/okulovsky/kaia) – kitchen ai assistant – think of it as cooler open source Alexa 
 
-Kaia can answer your queries, set timers, and help you live a more healthy and wholesome life
+it can answer your queries, set timers, and help you live a more healthy and wholesome life
 
 ![alt text](docs/img.png)
 
