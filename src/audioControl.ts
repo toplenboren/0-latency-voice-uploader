@@ -332,6 +332,10 @@ export class AudioControl {
 
 
     async _setupAudioStreaming() {
+        if (!this.audioStream || !this.audioContext) {
+            throw new Error('Audio stream or audio context are undefined')
+        }
+
         const source = this.audioContext.createMediaStreamSource(this.audioStream)
         const processorUrl = new URL('/wav-recorder-processor.js', window.location.href).href
 

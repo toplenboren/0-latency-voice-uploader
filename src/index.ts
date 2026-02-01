@@ -1,6 +1,5 @@
 import { UIControl, IUIControlConfig } from './uiControl'
 import { AudioControl, IAudioControlConfig } from './audioControl.js'
-import { Api, IApiConfig } from './api.js'
 import { AvatarClient } from './scripts'
 import { Dispatcher } from './scripts'
 import { Message } from './scripts'
@@ -38,7 +37,6 @@ class KaiaApp {
     sessionId: string
 
     uiControl?: UIControl
-    api?: Api
     audioControl?: AudioControl
 
     avatarClient?: AvatarClient
@@ -61,13 +59,13 @@ class KaiaApp {
 
             const uiControl = new UIControl(uiControlConfig)
 
-            const apiConfig: IApiConfig = {
-                sessionId: this.config.sessionId,
-                kaiaServerBaseUrl: this.config.kaiaServerBaseUrl,
-                audioServerBaseUrl: this.config.audioServerBaseUrl,
-            }
+            // const apiConfig: IApiConfig = {
+            //     sessionId: this.config.sessionId,
+            //     kaiaServerBaseUrl: this.config.kaiaServerBaseUrl,
+            //     audioServerBaseUrl: this.config.audioServerBaseUrl,
+            // }
 
-            const api = new Api(apiConfig)
+            //const api = new Api(apiConfig)
 
             const silenceThreshold = this.config.silenceThreshold || 15
 
@@ -89,23 +87,23 @@ class KaiaApp {
 
                 onRecordingChunk: async (index: number, audioChunks: Blob[]) => {
                     console.debug(`[kaia] Recording chunk reported: index=${index}, totalChunks=${audioChunks.length}`)
-                    await api.uploadAudioChunk(index, audioChunks)
+                    await avatarClient.uploadAudioChunk(index, audioChunks)
                 },
 
                 onStopRecording: async () => {
                     console.debug('[kaia] Stopping recording')
-                    const stopRecordingResponse = await api.stopRecording()
+                    const stopRecordingResponse = await avatarClient.stopRecording()
                     console.debug('[kaia] Stop recording response:', stopRecordingResponse)  
                     uiControl.addChatMessage(`Recording saved to Kaia server, ${stopRecordingResponse.wav_filename}`, { type: 'service' })
                     if (stopRecordingResponse && stopRecordingResponse.wav_filename) { 
-                        const sendAudioCommandResponse = await api.sendCommandAudio(stopRecordingResponse.wav_filename)
+                        const sendAudioCommandResponse = await avatarClient.sendCommandAudio(stopRecordingResponse.wav_filename)
                         console.debug('[kaia] Sent audio command', sendAudioCommandResponse)
                     }
                 },
 
                 onAudioPlayEnd: async (path: string) => {
                     console.debug(`[kaia] Audio play ended, ${path} sending confirmation signal`)
-                    api.sendConfirmationAudio(path)
+                    avatarClient.sendConfirmationAudio(path)
                 },
 
                 onVolumeChange: async (volume: number) => {
@@ -120,18 +118,15 @@ class KaiaApp {
             const audioControl = new AudioControl(audioControlConfig)
             await audioControl.initialize()
 
-            this.api = api
             this.audioControl = audioControl
             this.uiControl = uiControl
 
             uiControl._debugSetThreshold(silenceThreshold)
 
-            // Initialize message API (scripts/)
             const baseUrl = this.config.kaiaServerBaseUrl
-            const avatarClient = new AvatarClient(baseUrl, this.config.sessionId || 'default')
+            const avatarClient = new AvatarClient({ baseUrl, session: this.config.sessionId })
             this.avatarClient = avatarClient
 
-            // Send InitializationEvent
             try {
                 const initMessage = new Message('InitializationEvent')
                 await avatarClient.addMessage(initMessage)
@@ -140,11 +135,9 @@ class KaiaApp {
                 console.error('[kaia] Failed to send InitializationEvent:', e)
             }
 
-            // Start dispatcher and attach handlers
             const dispatcher = new Dispatcher(avatarClient, 1)
             this.dispatcher = dispatcher
 
-            // Wire up handlers as per example
             const chatDiv = document.getElementById('chatMessages') as HTMLElement
             const imageEl = document.getElementById('pictureDisplay') as HTMLImageElement
             let overlayDiv = document.getElementById('overlay') as HTMLDivElement | null

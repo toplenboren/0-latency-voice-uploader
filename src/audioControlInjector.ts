@@ -1,4 +1,4 @@
-import { AudioControl } from './AudioControl'
+import { AudioControl } from './audioControl'
 
 /**
  * AudioControlInjector allows injecting an external audio file into AudioControl's processing pipeline.
