@@ -1,7 +1,13 @@
 import { UIControl, IUIControlConfig } from './uiControl'
-import { Api, IApiConfig } from './api.js'
 import { AudioControl, IAudioControlConfig } from './audioControl.js'
-import { AudioControlInjector} from './audioControlInjector.js'
+import { Api, IApiConfig } from './api.js'
+import { AvatarClient } from './scripts'
+import { Dispatcher } from './scripts'
+import { Message } from './scripts'
+import { ChatCommandHandler } from './scripts'
+import { ImageCommandHandler } from './scripts'
+import { ButtonGridCommandHandler } from './scripts'
+import { ServerStartedEventHandler } from './scripts'
 
 interface IKaiaConfig {
     playSounds: boolean,
@@ -34,80 +40,14 @@ class KaiaApp {
     uiControl?: UIControl
     api?: Api
     audioControl?: AudioControl
-    audioControlInjector: AudioControlInjector
+
+    avatarClient?: AvatarClient
+    dispatcher?: Dispatcher
 
     constructor (config: IKaiaConfig) {
         this.sessionId = config?.sessionId || Math.floor(Math.random() * 1000000).toString()
-
         this.lastMessageIndex = 0
-
         this.config = config
-    }
-
-    async processUpdates () {
-        if (!this.api || !this.uiControl || !this.audioControl) {
-            throw new Error('Kaia is not properly initialized')
-        }
-
-        const updates = await this.api.getUpdates(this.lastMessageIndex)
-        
-        for (const update of updates) {
-            if (update.id > this.lastMessageIndex) {
-                this.lastMessageIndex = update.id
-            } else {
-                continue
-            }
-
-            if (update['type'] == 'reaction_message') {
-                const payloadText = update?.payload?.text
-
-                const payloadType = update?.payload?.type
-
-                const payloadAvatar = update?.payload?.avatar
-                const payloadAvatarPath = `${this.api.config.kaiaServerBaseUrl}${payloadAvatar}`
-                
-                const chatMessageOptions = {
-                    type: payloadType === 'FromUser' ? 'from' : 'to',
-                    avatar: payloadAvatar ? payloadAvatarPath : undefined
-                }
-
-                this.uiControl.addChatMessage(payloadText, chatMessageOptions)
-            }
-            
-            if (update['type'] == 'reaction_image') {
-                const imageName = update?.payload?.filename
-                const imagePath = `/file/${imageName}`
-                this.uiControl.changePicture(imagePath)
-            }
-
-            if (update['type'] == 'injection_audio') {
-                const injection_filename = update?.payload?.filename
-                const injection_url = `/file/${injection_filename}`
-                if (injection_url && this.audioControl) {
-                    console.debug(`[kaia] Injection audio requested: ${injection_url}`)
-                    await this.audioControlInjector.injectAudio(injection_url)
-                } else {
-                    console.warn('[kaia] Injection audio update received without a valid payload')
-                }
-            }
-
-
-            if (update['type'] == 'reaction_audio') {
-                const audioName = update?.payload?.filename
-                const audioPath = `/file/${audioName}`
-
-                this.audioControl.playAudio(audioPath)
-                return
-            }
-
-            // This occurs when kaia server is restarted. This is the first message to be put in query
-            // This means that we need to restart chat
-            if (update['type'] == 'notification_driver_start') {
-                this.uiControl.addChatMessage('Kaia server was restarted', { type: "service" })
-            }
-        }
-
-        setTimeout(this.processUpdates.bind(this), 1000)
     }
 
     async initialize () {
@@ -141,12 +81,7 @@ class KaiaApp {
                 mediaRecorderChunkLength: this.config.mediaRecorderChunkLength || 100,
 
                 playSounds: this.config.playSounds || true,
-
-                onWakeword: async (word: string) => {
-                    uiControl.addChatMessage('Wakeword detected', { type: 'service' })
-                    const sendWakewordCommandResponse = await api.sendCommandWakeWord(word)
-                    console.debug('[kaia] Sent wakeword command', sendWakewordCommandResponse)
-                },
+                onWakeword: () => uiControl.addChatMessage('Wakeword detected', { type: 'service' }),
 
                 onStartRecording: () => {
                     uiControl.addChatMessage(`Recording just started`, { type: 'service' })
@@ -171,7 +106,6 @@ class KaiaApp {
                 onAudioPlayEnd: async (path: string) => {
                     console.debug(`[kaia] Audio play ended, ${path} sending confirmation signal`)
                     api.sendConfirmationAudio(path)
-                    setTimeout(this.processUpdates.bind(this), 1)
                 },
 
                 onVolumeChange: async (volume: number) => {
@@ -186,30 +120,48 @@ class KaiaApp {
             const audioControl = new AudioControl(audioControlConfig)
             await audioControl.initialize()
 
-            const audioControlInjector = new AudioControlInjector(audioControl)
-
             this.api = api
             this.audioControl = audioControl
             this.uiControl = uiControl
-            this.audioControlInjector = audioControlInjector
 
             uiControl._debugSetThreshold(silenceThreshold)
 
+            // Initialize message API (scripts/)
+            const baseUrl = this.config.kaiaServerBaseUrl
+            const avatarClient = new AvatarClient(baseUrl, this.config.sessionId || 'default')
+            this.avatarClient = avatarClient
+
+            // Send InitializationEvent
             try {
-                const initializeResponse = await api.commandInitialize()
-                console.info('initializeResponse', initializeResponse)
-                
-                if (initializeResponse && initializeResponse.id) {
-                    this.lastMessageIndex = initializeResponse.id
-                }
-                
-                uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}. Last message index: ${this.lastMessageIndex}`, { type: 'service' })
-                setTimeout(this.processUpdates.bind(this), 1)
-            } catch (error) {
-                console.error('[kaia] Failed to initialize Kaia server:', error)
-                uiControl.addChatMessage('Unable to connect to Kaia server. Please check if Kaia server is running', { type: 'service' })
-                uiControl.addChatMessage(`Current server URL: ${this.config.kaiaServerBaseUrl}`, { type: 'service' })
+                const initMessage = new Message('InitializationEvent')
+                await avatarClient.addMessage(initMessage)
+                avatarClient.lastMessageId = (initMessage as any).envelop.id
+            } catch (e) {
+                console.error('[kaia] Failed to send InitializationEvent:', e)
             }
+
+            // Start dispatcher and attach handlers
+            const dispatcher = new Dispatcher(avatarClient, 1)
+            this.dispatcher = dispatcher
+
+            // Wire up handlers as per example
+            const chatDiv = document.getElementById('chatMessages') as HTMLElement
+            const imageEl = document.getElementById('pictureDisplay') as HTMLImageElement
+            let overlayDiv = document.getElementById('overlay') as HTMLDivElement | null
+            if (!overlayDiv) {
+                overlayDiv = document.createElement('div') as HTMLDivElement
+                overlayDiv.id = 'overlay'
+                document.body.appendChild(overlayDiv)
+            }
+
+            new ChatCommandHandler(dispatcher, chatDiv, this.config.kaiaServerBaseUrl)
+            new ImageCommandHandler(dispatcher, imageEl)
+            new ButtonGridCommandHandler(dispatcher, overlayDiv, avatarClient)
+            new ServerStartedEventHandler(dispatcher)
+
+            dispatcher.start()
+
+            uiControl.addChatMessage(`Please say: "${this.config.wakeword}" and start talking.. Kaia client_id is ${this.config.sessionId}.`, { type: 'service' })
         } catch (error) {
             console.error('[kaia] Failed to initialize Kaia:', error)
         }
