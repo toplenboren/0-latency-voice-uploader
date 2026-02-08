@@ -1,6 +1,7 @@
 import { UIControl, IUIControlConfig } from './uiControl'
 import { AudioControl, IAudioControlConfig } from './audioControl.js'
 import { AvatarClient } from './scripts'
+import { AudioControlClient } from './scripts'
 import { Dispatcher } from './scripts'
 import { Message } from './scripts'
 import { ChatCommandHandler } from './scripts'
@@ -40,6 +41,7 @@ class KaiaApp {
     audioControl?: AudioControl
 
     avatarClient?: AvatarClient
+    audioControlClient?: AudioControlClient
     dispatcher?: Dispatcher
 
     constructor (config: IKaiaConfig) {
@@ -58,14 +60,6 @@ class KaiaApp {
             }
 
             const uiControl = new UIControl(uiControlConfig)
-
-            // const apiConfig: IApiConfig = {
-            //     sessionId: this.config.sessionId,
-            //     kaiaServerBaseUrl: this.config.kaiaServerBaseUrl,
-            //     audioServerBaseUrl: this.config.audioServerBaseUrl,
-            // }
-
-            //const api = new Api(apiConfig)
 
             const silenceThreshold = this.config.silenceThreshold || 15
 
@@ -87,23 +81,23 @@ class KaiaApp {
 
                 onRecordingChunk: async (index: number, audioChunks: Blob[]) => {
                     console.debug(`[kaia] Recording chunk reported: index=${index}, totalChunks=${audioChunks.length}`)
-                    await avatarClient.uploadAudioChunk(index, audioChunks)
+                    await audioControlClient.uploadAudioChunk(index, audioChunks)
                 },
 
                 onStopRecording: async () => {
                     console.debug('[kaia] Stopping recording')
-                    const stopRecordingResponse = await avatarClient.stopRecording()
+                    const stopRecordingResponse = await audioControlClient.stopRecording()
                     console.debug('[kaia] Stop recording response:', stopRecordingResponse)  
                     uiControl.addChatMessage(`Recording saved to Kaia server, ${stopRecordingResponse.wav_filename}`, { type: 'service' })
                     if (stopRecordingResponse && stopRecordingResponse.wav_filename) { 
-                        const sendAudioCommandResponse = await avatarClient.sendCommandAudio(stopRecordingResponse.wav_filename)
+                        const sendAudioCommandResponse = await audioControlClient.sendCommandAudio(stopRecordingResponse.wav_filename)
                         console.debug('[kaia] Sent audio command', sendAudioCommandResponse)
                     }
                 },
 
                 onAudioPlayEnd: async (path: string) => {
                     console.debug(`[kaia] Audio play ended, ${path} sending confirmation signal`)
-                    avatarClient.sendConfirmationAudio(path)
+                    audioControlClient.sendConfirmationAudio(path)
                 },
 
                 onVolumeChange: async (volume: number) => {
@@ -126,6 +120,9 @@ class KaiaApp {
             const baseUrl = this.config.kaiaServerBaseUrl
             const avatarClient = new AvatarClient({ baseUrl, session: this.config.sessionId })
             this.avatarClient = avatarClient
+
+            const audioControlBaseUrl = this.config.audioServerBaseUrl
+            const audioControlClient = new AudioControlClient({ baseUrl, session: this.config.sessionId })
 
             try {
                 const initMessage = new Message('InitializationEvent')
