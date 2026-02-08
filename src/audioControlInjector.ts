@@ -11,14 +11,14 @@ import { AudioControl } from './audioControl'
 export class AudioControlInjector {
   private audioControl: AudioControl
 
-  constructor(audioControl: AudioControl) {
+  constructor (audioControl: AudioControl) {
     this.audioControl = audioControl
   }
 
   /**
    * Starts persistent silence by pumping a silent buffer into AudioControl's worklet, analyzer, and recognizer.
    */
-  private startPersistentSilence(): void {
+  private startPersistentSilence (): void {
     const ac: any = this.audioControl
     const ctx: AudioContext = ac.audioContext
     const workletNode: AudioWorkletNode = ac.audioWorkletNode

@@ -31,15 +31,15 @@ export class UIControl {
         this.pictureContainer = pictureContainer
     }
 
-    private proxiedImageUrl(url: string): string {
-        if (!this.config.proxyUrl) return url;
+    private proxiedImageUrl (url: string): string {
+        if (!this.config.proxyUrl) return url
         try {
-            const u = new URL(url, window.location.origin);
-            u.host = this.config.proxyUrl.replace(/^https?:\/\//, '');
-            u.protocol = this.config.proxyUrl.startsWith('https') ? 'https:' : 'http:';
-            return u.toString();
+            const u = new URL(url, window.location.origin)
+            u.host = this.config.proxyUrl.replace(/^https?:\/\//, '')
+            u.protocol = this.config.proxyUrl.startsWith('https') ? 'https:' : 'http:'
+            return u.toString()
         } catch {
-            return url;
+            return url
         }
     }
 

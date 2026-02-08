@@ -1,38 +1,38 @@
 import { defineConfig } from 'vite'
-import qrcode from 'qrcode-terminal';
-import { networkInterfaces } from 'os';
-import { readFileSync } from 'fs';
-import { config } from 'dotenv';
+import qrcode from 'qrcode-terminal'
+import { networkInterfaces } from 'os'
+import { readFileSync } from 'fs'
+import { config } from 'dotenv'
 
-config();
+config()
 
 const REQUIRED_ENV = [
-    'KAIA_SERVER_URL',
-    'AUDIO_SERVER_URL',
-    'SESSION_ID',
-    'SSL_KEY_PATH',
-    'SSL_CERT_PATH',
+  'KAIA_SERVER_URL',
+  'AUDIO_SERVER_URL',
+  'SESSION_ID',
+  'SSL_KEY_PATH',
+  'SSL_CERT_PATH',
 ]
 REQUIRED_ENV.forEach(requiredEnvKey => { if (!process.env[requiredEnvKey]) throw new Error(`One of required .env variables is not set ${requiredEnvKey}. Please check .env.example and your .env file. Here is the list of required variables: ${REQUIRED_ENV.join(', ')}`) })
 
-const DEFAULT_PORT ='5173';
+const DEFAULT_PORT ='5173'
 
-function getNetworkAddress() {
-  const interfaces = networkInterfaces();
+function getNetworkAddress () {
+  const interfaces = networkInterfaces()
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name] || []) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
+        return iface.address
       }
     }
   }
-  return 'localhost';
+  return 'localhost'
 }
 
-function qrCodePlugin() {
+function qrCodePlugin () {
   return {
     name: 'vite-plugin-qrcode',
-    configureServer(server) {
+    configureServer (server) {
       server.httpServer?.once('listening', () => {
         const address = server.httpServer.address()
         const host = getNetworkAddress()
@@ -63,9 +63,9 @@ export default defineConfig({
       const config = {
         kaiaServerBaseUrl: process.env.KAIA_SERVER_URL,
         proxyUrl: `http://localhost:${process.env.PORT || DEFAULT_PORT}`
-      };
-      const configString = encodeURIComponent(JSON.stringify(config));
-      return `?config=${configString}`;
+      }
+      const configString = encodeURIComponent(JSON.stringify(config))
+      return `?config=${configString}`
     })(),
     host: true,
     https: {

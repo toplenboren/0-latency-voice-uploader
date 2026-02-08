@@ -331,7 +331,7 @@ export class AudioControl {
     }
 
 
-    async _setupAudioStreaming() {
+    async _setupAudioStreaming () {
         if (!this.audioStream || !this.audioContext) {
             throw new Error('Audio stream or audio context are undefined')
         }
